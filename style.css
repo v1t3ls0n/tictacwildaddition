@@ -1,0 +1,451 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.container {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    max-width: 700px;
+    width: 100%;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 30px;
+    font-size: 2.5em;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.game-info {
+    margin-bottom: 30px;
+}
+
+.score-board {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.score-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.score-label {
+    font-size: 0.9em;
+    color: #666;
+    font-weight: 600;
+}
+
+.score-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: #333;
+}
+
+#score-x {
+    color: #667eea;
+}
+
+#score-o {
+    color: #764ba2;
+}
+
+.current-player {
+    font-size: 1.2em;
+    color: #555;
+    margin-bottom: 15px;
+}
+
+#current-player {
+    font-weight: bold;
+    color: #667eea;
+    font-size: 1.3em;
+}
+
+.action-selector {
+    margin-bottom: 15px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    transition: opacity 0.3s ease;
+}
+
+.mode-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.mode-option-btn {
+    padding: 15px 30px;
+    font-size: 1.3em;
+    font-weight: bold;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.mode-option-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.mode-option-btn:active {
+    transform: translateY(0);
+}
+
+.action-label {
+    font-size: 1em;
+    color: #666;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.action-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.action-btn {
+    padding: 10px 20px;
+    font-size: 1em;
+    font-weight: bold;
+    border: 2px solid #ddd;
+    border-radius: 25px;
+    background: white;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 100px;
+}
+
+.action-btn:hover:not(.disabled) {
+    background: #f0f0f0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.action-btn.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.action-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #e9ecef;
+    color: #6c757d;
+}
+
+.action-btn.disabled:hover {
+    transform: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.action-text {
+    display: inline-block;
+}
+
+.cooldown-indicator {
+    display: none;
+    font-size: 0.85em;
+    font-weight: bold;
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.cooldown-indicator.visible {
+    display: inline-block;
+    animation: pulse-cooldown 1s ease-in-out infinite;
+}
+
+.action-btn.active .cooldown-indicator.visible {
+    background: rgba(255, 255, 255, 0.3);
+    border: 2px solid white;
+}
+
+@keyframes pulse-cooldown {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+.status {
+    font-size: 1.3em;
+    font-weight: bold;
+    color: #764ba2;
+    min-height: 30px;
+    margin-top: 10px;
+}
+
+.board {
+    display: grid;
+    grid-gap: 8px;
+    margin: 30px auto;
+    background: #f0f0f0;
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 90vw;
+}
+
+.cell {
+    aspect-ratio: 1;
+    background: white;
+    border: none;
+    border-radius: 8px;
+    font-size: var(--cell-font-size, 2em);
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.cell:hover:not(.disabled) {
+    background: #f8f8f8;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cell.disabled {
+    cursor: not-allowed;
+}
+
+.cell.x {
+    color: #667eea;
+    font-size: calc(var(--cell-font-size, 2em) * 1.1);
+}
+
+.cell.o {
+    color: #764ba2;
+}
+
+.cell.d {
+    color: #28a745;
+    font-size: calc(var(--cell-font-size, 2em) * 0.7);
+}
+
+.cell.t {
+    color: #ffc107;
+    font-size: calc(var(--cell-font-size, 2em) * 0.9);
+}
+
+.cell.s {
+    color: #dc3545;
+    font-size: calc(var(--cell-font-size, 2em) * 0.85);
+}
+
+.game-controls {
+    margin-top: 30px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.reset-btn {
+    padding: 15px 40px;
+    font-size: 1.2em;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.reset-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.reset-btn:active {
+    transform: translateY(0);
+}
+
+.reset-btn.secondary-btn {
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.4);
+}
+
+.reset-btn.secondary-btn:hover {
+    box-shadow: 0 6px 20px rgba(108, 117, 125, 0.6);
+}
+
+/* Win animation */
+.cell.winning {
+    animation: pulse 0.5s ease-in-out 3;
+    background: #d4edda;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    max-width: 500px;
+    width: 90%;
+}
+
+.modal-content h2 {
+    color: #333;
+    margin-bottom: 30px;
+    font-size: 2em;
+}
+
+.player-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.player-option-btn {
+    padding: 15px 30px;
+    font-size: 1.3em;
+    font-weight: bold;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.player-option-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.player-option-btn:active {
+    transform: translateY(0);
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 20px;
+    }
+    
+    h1 {
+        font-size: 2em;
+    }
+    
+    .score-board {
+        padding: 10px;
+        gap: 10px;
+    }
+    
+    .score-label {
+        font-size: 0.8em;
+    }
+    
+    .score-value {
+        font-size: 1.5em;
+    }
+    
+    .board {
+        max-width: 100%;
+        grid-gap: 5px;
+        padding: 5px;
+    }
+    
+    .cell {
+        font-size: 1.5em;
+    }
+    
+    .action-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .action-btn {
+        padding: 8px 16px;
+        font-size: 0.9em;
+    }
+    
+    .modal-content {
+        padding: 30px 20px;
+    }
+    
+    .modal-content h2 {
+        font-size: 1.5em;
+    }
+    
+    .player-option-btn {
+        padding: 12px 24px;
+        font-size: 1.1em;
+    }
+}
+

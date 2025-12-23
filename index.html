@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Game Mode Selection Modal -->
+    <div class="modal-overlay" id="game-mode-modal">
+        <div class="modal-content">
+            <h2>Select Game Mode</h2>
+            <div class="mode-options">
+                <button class="mode-option-btn" data-mode="multi">Multi-Player</button>
+                <button class="mode-option-btn" data-mode="computer">Vs Computer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Selection Modal (for multi-player) -->
+    <div class="modal-overlay" id="player-selection-modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Select Number of Players</h2>
+            <div class="player-options">
+                <button class="player-option-btn" data-players="2">2 Players</button>
+                <button class="player-option-btn" data-players="3">3 Players</button>
+                <button class="player-option-btn" data-players="4">4 Players</button>
+                <button class="player-option-btn" data-players="5">5 Players</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="game-container" style="display: none;">
+        <h1>Tic Tac Toe</h1>
+        <div class="game-info">
+            <div class="score-board" id="score-board">
+                <!-- Dynamic score items will be added here -->
+            </div>
+            <div class="current-player">
+                Current Player: <span id="current-player">X</span>
+                <span id="computer-thinking" style="display: none; margin-left: 10px; color: #764ba2;">🤖 Thinking...</span>
+            </div>
+            <div class="action-selector" id="action-selector">
+                <div class="action-label">Choose Action:</div>
+                <div class="action-buttons">
+                    <button class="action-btn active" data-action="mark" id="action-mark">
+                        <span class="action-text">Mark</span>
+                    </button>
+                    <button class="action-btn" data-action="delete" id="action-delete">
+                        <span class="action-text">Delete</span>
+                        <span class="cooldown-indicator" id="cooldown-delete"></span>
+                    </button>
+                    <button class="action-btn" data-action="move" id="action-move">
+                        <span class="action-text">Move</span>
+                        <span class="cooldown-indicator" id="cooldown-move"></span>
+                    </button>
+                </div>
+            </div>
+            <div class="status" id="status"></div>
+        </div>
+        <div class="board" id="board">
+            <!-- Dynamic cells will be added here -->
+        </div>
+        <div class="game-controls">
+            <button class="reset-btn" id="reset-btn">Reset Game</button>
+            <button class="reset-btn secondary-btn" id="new-game-btn" onclick="location.reload()">New Game (Change Players)</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
