@@ -26,10 +26,26 @@ This guide will help you deploy the Tic Tac Toe game to Railway.
    - Railway automatically sets `PORT` environment variable
    - No additional configuration needed for basic deployment
 
-4. **Generate Domain**
-   - Railway will automatically generate a domain
-   - You can customize it in the service settings
-   - The app will be accessible at: `https://your-app-name.up.railway.app`
+4. **Get Your URL**
+   - Railway automatically generates a domain when you deploy
+   - **To find your URL:**
+     1. Go to your project in Railway dashboard
+     2. Click on your service
+     3. Go to the "Settings" tab
+     4. Scroll down to "Networking" section
+     5. You'll see your generated domain (e.g., `https://your-app-name.up.railway.app`)
+     6. Click "Generate Domain" if you don't see one yet
+   
+   - **To share with players:**
+     - Copy the URL from the Networking section
+     - Share this URL with players (e.g., `https://tictactoe-production.up.railway.app`)
+     - Players can open this URL in their browser to play
+   
+   - **Custom Domain (Optional):**
+     - In the Networking section, click "Custom Domain"
+     - Add your own domain (e.g., `tictactoe.yourdomain.com`)
+     - Follow the DNS configuration instructions
+     - This gives you a cleaner, branded URL
 
 ### Option 2: Deploy via Railway CLI
 
