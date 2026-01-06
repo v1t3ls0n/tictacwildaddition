@@ -825,24 +825,60 @@ class TicTacToe {
     }
 
     updateCellDisplay(index) {
-        const cell = document.querySelector(`[data-index="${index}"]`);
+        // Scope the query to the board element to avoid conflicts with modal elements
+        const boardElement = document.getElementById('board');
+        if (!boardElement) {
+            console.error('Board element not found!');
+            return;
+        }
+        
+        const cell = boardElement.querySelector(`[data-index="${index}"]`);
         const player = this.board[index];
+        
+        if (!cell) {
+            console.error(`Cell at index ${index} not found in board!`);
+            return;
+        }
+        
         if (player) {
             const config = PLAYER_CONFIGS[player];
-            cell.textContent = config.symbol;
-            cell.style.color = config.color;
-            cell.classList.add('marked');
-            // Remove all player symbol classes
+            if (!config) {
+                console.error(`No config found for player: ${player}`);
+                return;
+            }
+            
+            // Remove all player symbol classes first
             PLAYER_SYMBOLS.forEach(p => {
                 cell.classList.remove(p.toLowerCase());
             });
+            
+            // Set the content and styling
+            cell.textContent = config.symbol;
+            cell.style.color = config.color;
+            cell.classList.add('marked');
+            
             // Add the current player's class
-            cell.classList.add(player.toLowerCase());
+            const playerClass = player.toLowerCase();
+            cell.classList.add(playerClass);
+        } else {
+            // If no player, clear the cell
+            cell.textContent = '';
+            cell.style.color = '';
+            cell.classList.remove('marked');
+            PLAYER_SYMBOLS.forEach(p => {
+                cell.classList.remove(p.toLowerCase());
+            });
         }
     }
 
     clearCellDisplay(index) {
-        const cell = document.querySelector(`[data-index="${index}"]`);
+        // Scope the query to the board element to avoid conflicts with modal elements
+        const boardElement = document.getElementById('board');
+        if (!boardElement) return;
+        
+        const cell = boardElement.querySelector(`[data-index="${index}"]`);
+        if (!cell) return;
+        
         cell.textContent = '';
         cell.style.color = '';
         cell.classList.remove('marked', 'x', 'o', 'c', 't', 's', 'disabled', 'winning');
@@ -925,9 +961,14 @@ class TicTacToe {
     }
 
     highlightWinningCells() {
+        const boardElement = document.getElementById('board');
+        if (!boardElement) return;
+        
         this.winningCells.forEach(index => {
-            const cell = document.querySelector(`[data-index="${index}"]`);
-            cell.classList.add('winning');
+            const cell = boardElement.querySelector(`[data-index="${index}"]`);
+            if (cell) {
+                cell.classList.add('winning');
+            }
         });
     }
 
