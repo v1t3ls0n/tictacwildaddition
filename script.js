@@ -550,6 +550,12 @@ class TicTacToe {
         this.updateDisplay();
         this.updateScores();
         this.updateActionButtons();
+
+        // If first player is a computer, start the game automatically
+        if (this.isComputerPlayer(this.currentPlayer) && this.gameActive) {
+            this.isComputerTurn = true;
+            setTimeout(() => this.makeComputerMove(), 500);
+        }
     }
 
     createBoard() {
@@ -1359,13 +1365,47 @@ class TicTacToe {
         return false;
     }
 
+    updateProgressBar(progress, text) {
+        const progressBar = document.getElementById('computer-progress-bar');
+        const progressText = document.getElementById('computer-progress-text');
+        const progressContainer = document.getElementById('computer-progress-container');
+        
+        if (progressBar) {
+            progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+        }
+        if (progressText) {
+            progressText.textContent = text;
+        }
+        if (progressContainer) {
+            progressContainer.style.display = 'flex';
+        }
+    }
+
+    hideProgressBar() {
+        const progressContainer = document.getElementById('computer-progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
+        }
+        const progressBar = document.getElementById('computer-progress-bar');
+        if (progressBar) {
+            progressBar.style.width = '0%';
+        }
+    }
+
     makeComputerMove() {
         if (!this.isComputerTurn || !this.gameActive) return;
+        
+        // Prevent multiple simultaneous computer moves
+        if (this._computingMove) return;
+        this._computingMove = true;
 
         const thinkingIndicator = document.getElementById('computer-thinking');
         const actionSelector = document.getElementById('action-selector');
         if (thinkingIndicator) thinkingIndicator.style.display = 'inline';
         if (actionSelector) actionSelector.style.opacity = '0.5';
+
+        // Show progress bar
+        this.updateProgressBar(0, 'Initializing...');
 
         setTimeout(() => {
             const board = [...this.board];
@@ -1373,9 +1413,11 @@ class TicTacToe {
 
             // Get all opponents (human players and other computer players)
             const opponents = this.players.filter(symbol => symbol !== this.currentPlayer);
-            const moves = this.getPossibleMovesMultiplayer(board, this.currentPlayer, opponents, moveCounters, true);
+            let moves = this.getPossibleMovesMultiplayer(board, this.currentPlayer, opponents, moveCounters, true);
 
             if (moves.length === 0) {
+                this._computingMove = false;
+                this.hideProgressBar();
                 if (thinkingIndicator) thinkingIndicator.style.display = 'none';
                 if (actionSelector) actionSelector.style.opacity = '1';
                 return;
@@ -1390,24 +1432,41 @@ class TicTacToe {
             const maxDepth = DIFFICULTY_LEVELS[difficulty].depth;
 
             // OPTIMIZATION: Order moves for better alpha-beta pruning (winning moves first)
+            this.updateProgressBar(5, 'Analyzing moves...');
             moves = this.orderMoves(moves, board, this.currentPlayer, opponents);
 
             // OPTIMIZATION: Iterative deepening - start shallow, go deeper if time allows
             const startTime = performance.now();
             const maxTime = 3000; // 3 second max thinking time
             let currentDepth = 1;
+            const totalMoves = moves.length;
+            let movesEvaluated = 0;
 
             while (currentDepth <= maxDepth && (performance.now() - startTime) < maxTime) {
                 let depthBestMove = null;
                 let depthBestScore = -Infinity;
 
-                for (const move of moves) {
+                for (let moveIndex = 0; moveIndex < moves.length; moveIndex++) {
+                    const move = moves[moveIndex];
                     const newBoard = [...board];
                     const newCounters = JSON.parse(JSON.stringify(moveCounters));
                     this.applyMove(newBoard, move, this.currentPlayer, newCounters);
 
                     const score = this.minimax(newBoard, 0, -Infinity, Infinity, false,
                         this.currentPlayer, opponents, newCounters, currentDepth);
+
+                    movesEvaluated++;
+                    
+                    // Update progress: 10% for initialization, 80% for move evaluation, 10% for finalization
+                    const moveProgress = 10 + (movesEvaluated / (totalMoves * maxDepth)) * 80;
+                    const depthProgress = (currentDepth / maxDepth) * 80;
+                    const timeProgress = Math.min(90, 10 + ((performance.now() - startTime) / maxTime) * 80);
+                    const overallProgress = Math.min(95, Math.max(moveProgress, depthProgress, timeProgress));
+                    
+                    this.updateProgressBar(
+                        overallProgress,
+                        `Depth ${currentDepth}/${maxDepth} - Evaluating move ${moveIndex + 1}/${totalMoves}...`
+                    );
 
                     if (score > depthBestScore) {
                         depthBestScore = score;
@@ -1437,15 +1496,22 @@ class TicTacToe {
                 currentDepth++;
             }
 
-            if (bestMove) {
-                this.currentAction = bestMove.action;
-                // Show notification and execute move (notification is shown inside executeComputerMove)
-                this.executeComputerMove(bestMove);
-            } else {
-                // No valid move found, hide thinking indicator
-                if (thinkingIndicator) thinkingIndicator.style.display = 'none';
-                if (actionSelector) actionSelector.style.opacity = '1';
-            }
+            // Finalize progress
+            this.updateProgressBar(100, 'Selecting best move...');
+
+            setTimeout(() => {
+                if (bestMove) {
+                    this.currentAction = bestMove.action;
+                    // Show notification and execute move (notification is shown inside executeComputerMove)
+                    this.executeComputerMove(bestMove);
+                } else {
+                    // No valid move found, hide thinking indicator
+                    this._computingMove = false;
+                    this.hideProgressBar();
+                    if (thinkingIndicator) thinkingIndicator.style.display = 'none';
+                    if (actionSelector) actionSelector.style.opacity = '1';
+                }
+            }, 200);
         }, 500);
     }
 
@@ -1526,13 +1592,15 @@ class TicTacToe {
                 }
             }
 
-            // Hide thinking indicator after move is executed
+            // Hide thinking indicator and progress bar after move is executed
             if (thinkingIndicator) thinkingIndicator.style.display = 'none';
             if (actionSelector) actionSelector.style.opacity = '1';
+            this.hideProgressBar();
 
             if (actionPerformed) {
                 this.updateMoveCounters(move.action);
                 this.isComputerTurn = false;
+                this._computingMove = false; // Reset flag after move
 
                 // Clear notification after move (unless game is over)
                 setTimeout(() => {
@@ -1559,9 +1627,14 @@ class TicTacToe {
                     // If next player is also a computer, trigger their move
                     if (this.isComputerPlayer(this.currentPlayer) && this.gameActive) {
                         this.isComputerTurn = true;
-                        setTimeout(() => this.makeComputerMove(), 300);
+                        // Add a small delay between computer moves for better visibility
+                        setTimeout(() => this.makeComputerMove(), 800);
                     }
                 }
+            } else {
+                // Move failed, reset flag and hide progress
+                this._computingMove = false;
+                this.hideProgressBar();
             }
         }, 1000); // 1 second delay to show notification
     }
@@ -1592,13 +1665,14 @@ class TicTacToe {
         document.getElementById('status').textContent = '';
         const thinkingIndicator = document.getElementById('computer-thinking');
         if (thinkingIndicator) thinkingIndicator.style.display = 'none';
+        this.hideProgressBar();
 
         this.updateDisplay();
         this.updateActionButtons();
 
         if (this.isComputerPlayer(this.currentPlayer) && this.gameActive) {
             this.isComputerTurn = true;
-            this.makeComputerMove();
+            setTimeout(() => this.makeComputerMove(), 500);
         }
     }
 }
