@@ -591,11 +591,16 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
+    const url = process.env.RAILWAY_PUBLIC_DOMAIN 
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        : `http://localhost:${PORT}`;
+    
     console.log(`
 ╔════════════════════════════════════════════╗
 ║   Tic Tac Toe Online Server Running!       ║
-║   Open http://localhost:${PORT} to play        ║
+║   Server: ${url.padEnd(40)}║
+║   Port: ${PORT.toString().padEnd(42)}║
 ╚════════════════════════════════════════════╝
     `);
 });

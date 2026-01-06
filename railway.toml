@@ -1,0 +1,15 @@
+# Railway configuration file
+# Railway will use this for deployment settings
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "npm start"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Health check (optional)
+# Railway will automatically detect if the service is healthy
+# based on HTTP responses
+
