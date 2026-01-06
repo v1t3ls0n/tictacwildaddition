@@ -832,10 +832,11 @@ class TicTacToe {
             cell.textContent = config.symbol;
             cell.style.color = config.color;
             cell.classList.add('marked');
-            this.players.forEach(p => {
-                const pLower = p.toLowerCase();
-                cell.classList.remove('x', 'o', 'd', 't', 's', pLower);
+            // Remove all player symbol classes
+            PLAYER_SYMBOLS.forEach(p => {
+                cell.classList.remove(p.toLowerCase());
             });
+            // Add the current player's class
             cell.classList.add(player.toLowerCase());
         }
     }
@@ -1269,56 +1270,131 @@ class TicTacToe {
 
             if (bestMove) {
                 this.currentAction = bestMove.action;
+                // Show notification and execute move (notification is shown inside executeComputerMove)
                 this.executeComputerMove(bestMove);
+            } else {
+                // No valid move found, hide thinking indicator
+                if (thinkingIndicator) thinkingIndicator.style.display = 'none';
+                if (actionSelector) actionSelector.style.opacity = '1';
             }
-
-            if (thinkingIndicator) thinkingIndicator.style.display = 'none';
-            if (actionSelector) actionSelector.style.opacity = '1';
         }, 500);
     }
 
-    executeComputerMove(move) {
-        let actionPerformed = false;
+    showComputerMoveNotification(move) {
+        const statusDisplay = document.getElementById('status');
+        const config = PLAYER_CONFIGS[this.currentPlayer];
+        let message = '';
+        let consoleMessage = '';
 
         if (move.action === 'mark') {
-            actionPerformed = this.handleMark(move.index);
+            const row = Math.floor(move.index / this.boardSize) + 1;
+            const col = (move.index % this.boardSize) + 1;
+            message = `🤖 ${config.name} will mark cell at row ${row}, column ${col}`;
+            consoleMessage = `${config.name} (Computer) chose to MARK cell at position ${move.index} (row ${row}, col ${col})`;
+            statusDisplay.style.color = config.color;
         } else if (move.action === 'delete') {
-            actionPerformed = this.handleDelete(move.index);
-        } else if (move.action === 'move') {
-            const adjacentIndex = this.findAdjacentOwnCell(move.index);
-            if (adjacentIndex !== -1) {
-                this.board[move.index] = this.currentPlayer;
-                this.board[adjacentIndex] = '';
-                this.updateCellDisplay(move.index);
-                this.clearCellDisplay(adjacentIndex);
-                actionPerformed = true;
+            const deletedPlayer = this.board[move.index];
+            if (deletedPlayer) {
+                const deletedConfig = PLAYER_CONFIGS[deletedPlayer];
+                const row = Math.floor(move.index / this.boardSize) + 1;
+                const col = (move.index % this.boardSize) + 1;
+                message = `⚠️ ${config.name} will DELETE ${deletedConfig.name}'s cell at row ${row}, column ${col}!`;
+                consoleMessage = `⚠️ ${config.name} (Computer) chose to DELETE ${deletedConfig.name}'s cell at position ${move.index} (row ${row}, col ${col})!`;
+                statusDisplay.style.color = '#dc3545'; // Red for delete action
+            } else {
+                message = `⚠️ ${config.name} will delete a cell!`;
+                consoleMessage = `⚠️ ${config.name} (Computer) chose to DELETE a cell at position ${move.index}!`;
+                statusDisplay.style.color = '#dc3545';
             }
+        } else if (move.action === 'move') {
+            const sourceIndex = move.sourceIndex !== undefined ? move.sourceIndex : this.findAdjacentOwnCell(move.index);
+            if (sourceIndex !== -1) {
+                const sourceRow = Math.floor(sourceIndex / this.boardSize) + 1;
+                const sourceCol = (sourceIndex % this.boardSize) + 1;
+                const targetRow = Math.floor(move.index / this.boardSize) + 1;
+                const targetCol = (move.index % this.boardSize) + 1;
+                message = `🤖 ${config.name} will move from row ${sourceRow}, column ${sourceCol} to row ${targetRow}, column ${targetCol}`;
+                consoleMessage = `${config.name} (Computer) chose to MOVE from position ${sourceIndex} (row ${sourceRow}, col ${sourceCol}) to position ${move.index} (row ${targetRow}, col ${targetCol})`;
+            } else {
+                const targetRow = Math.floor(move.index / this.boardSize) + 1;
+                const targetCol = (move.index % this.boardSize) + 1;
+                message = `🤖 ${config.name} will move to row ${targetRow}, column ${targetCol}`;
+                consoleMessage = `${config.name} (Computer) chose to MOVE to position ${move.index} (row ${targetRow}, col ${targetCol})`;
+            }
+            statusDisplay.style.color = config.color;
         }
 
-        if (actionPerformed) {
-            this.updateMoveCounters(move.action);
-            this.isComputerTurn = false;
+        // Display in UI
+        statusDisplay.textContent = message;
 
-            if (this.checkWin()) {
-                this.gameActive = false;
-                this.displayWinner();
-                this.highlightWinningCells();
-            } else if (this.checkDraw()) {
-                this.gameActive = false;
-                this.displayDraw();
-            } else {
-                this.nextPlayer();
-                this.updateDisplay();
-                this.setAction('mark');
-                this.updateActionButtons();
+        // Print to console
+        console.log(consoleMessage);
+    }
 
-                // If next player is also a computer, trigger their move
-                if (this.isComputerPlayer(this.currentPlayer) && this.gameActive) {
-                    this.isComputerTurn = true;
-                    setTimeout(() => this.makeComputerMove(), 300);
+    executeComputerMove(move) {
+        const thinkingIndicator = document.getElementById('computer-thinking');
+        const actionSelector = document.getElementById('action-selector');
+
+        // Show notification before executing the move
+        this.showComputerMoveNotification(move);
+
+        // Wait a moment for user to see the notification, then execute
+        setTimeout(() => {
+            let actionPerformed = false;
+
+            if (move.action === 'mark') {
+                actionPerformed = this.handleMark(move.index);
+            } else if (move.action === 'delete') {
+                actionPerformed = this.handleDelete(move.index);
+            } else if (move.action === 'move') {
+                const adjacentIndex = this.findAdjacentOwnCell(move.index);
+                if (adjacentIndex !== -1) {
+                    this.board[move.index] = this.currentPlayer;
+                    this.board[adjacentIndex] = '';
+                    this.updateCellDisplay(move.index);
+                    this.clearCellDisplay(adjacentIndex);
+                    actionPerformed = true;
                 }
             }
-        }
+
+            // Hide thinking indicator after move is executed
+            if (thinkingIndicator) thinkingIndicator.style.display = 'none';
+            if (actionSelector) actionSelector.style.opacity = '1';
+
+            if (actionPerformed) {
+                this.updateMoveCounters(move.action);
+                this.isComputerTurn = false;
+
+                // Clear notification after move (unless game is over)
+                setTimeout(() => {
+                    const statusDisplay = document.getElementById('status');
+                    if (this.gameActive && !statusDisplay.textContent.includes('Wins') && !statusDisplay.textContent.includes('Draw')) {
+                        statusDisplay.textContent = '';
+                        statusDisplay.style.color = '';
+                    }
+                }, 1500); // Clear after showing the move result
+
+                if (this.checkWin()) {
+                    this.gameActive = false;
+                    this.displayWinner();
+                    this.highlightWinningCells();
+                } else if (this.checkDraw()) {
+                    this.gameActive = false;
+                    this.displayDraw();
+                } else {
+                    this.nextPlayer();
+                    this.updateDisplay();
+                    this.setAction('mark');
+                    this.updateActionButtons();
+
+                    // If next player is also a computer, trigger their move
+                    if (this.isComputerPlayer(this.currentPlayer) && this.gameActive) {
+                        this.isComputerTurn = true;
+                        setTimeout(() => this.makeComputerMove(), 300);
+                    }
+                }
+            }
+        }, 1000); // 1 second delay to show notification
     }
 
     resetGame() {
