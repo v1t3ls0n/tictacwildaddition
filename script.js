@@ -1,50 +1,476 @@
 // Player configurations
 const PLAYER_CONFIGS = {
-    'X': { symbol: '✕', color: '#667eea', name: 'X' },
-    'O': { symbol: '○', color: '#764ba2', name: 'Circle' },
+    'X': { symbol: '✕', color: '#ff6b6b', name: 'X' },
+    'O': { symbol: '○', color: '#4ecdc4', name: 'Circle' },
     'D': { symbol: '•', color: '#28a745', name: 'Dot' },
     'T': { symbol: '▲', color: '#ffc107', name: 'Triangle' },
     'S': { symbol: '■', color: '#dc3545', name: 'Square' }
 };
 
-const PLAYER_SYMBOLS = ['X', 'O', 'D', 'T', 'S']; // Order of player symbols (X, Circle, Dot, Triangle, Square)
+const PLAYER_SYMBOLS = ['X', 'O', 'D', 'T', 'S'];
 
+// ==================== ONLINE GAME CLASS ====================
+class OnlineTicTacToe {
+    constructor(socket, state, mySymbol, myIndex) {
+        this.socket = socket;
+        this.roomCode = state.roomCode;
+        this.mySymbol = mySymbol;
+        this.myIndex = myIndex;
+        this.numPlayers = state.numPlayers;
+        this.boardSize = state.boardSize;
+        this.board = state.board;
+        this.players = state.players;
+        this.currentPlayerIndex = state.currentPlayerIndex;
+        this.gameActive = state.gameActive;
+        this.moveCounters = state.moveCounters;
+        this.deleteCooldown = state.deleteCooldown;
+        this.moveCooldown = state.moveCooldown;
+        this.scores = {};
+        this.currentAction = 'mark';
+        this.winningCells = [];
+
+        // Initialize scores
+        this.players.forEach(p => {
+            this.scores[p.symbol] = 0;
+        });
+
+        this.initializeGame();
+        this.setupSocketListeners();
+    }
+
+    initializeGame() {
+        this.createBoard();
+        this.createScoreDisplay();
+
+        const resetBtn = document.getElementById('reset-btn');
+        const newGameBtn = document.getElementById('new-game-btn');
+        const actionButtons = document.querySelectorAll('.action-btn');
+
+        resetBtn.addEventListener('click', () => this.requestReset());
+        newGameBtn.addEventListener('click', () => this.leaveGame());
+
+        actionButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (e.target.disabled || e.target.closest('.action-btn').disabled) return;
+                const action = e.target.closest('.action-btn').getAttribute('data-action');
+                if (this.isMyTurn() && this.isActionAvailable(action)) {
+                    this.setAction(action);
+                    this.updateActionButtons();
+                }
+            });
+        });
+
+        // Show online indicator
+        document.getElementById('online-indicator').style.display = 'flex';
+        document.getElementById('room-info').textContent = `Room: ${this.roomCode}`;
+
+        // Show chat
+        document.getElementById('chat-container').style.display = 'block';
+        this.setupChat();
+
+        this.updateDisplay();
+        this.updateScores();
+        this.updateActionButtons();
+    }
+
+    setupChat() {
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+        const chatToggle = document.getElementById('chat-toggle');
+        const chatMessages = document.getElementById('chat-messages');
+
+        const sendMessage = () => {
+            const message = chatInput.value.trim();
+            if (message) {
+                this.socket.emit('chatMessage', {
+                    roomCode: this.roomCode,
+                    message
+                });
+                chatInput.value = '';
+            }
+        };
+
+        chatSendBtn.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        chatToggle.addEventListener('click', () => {
+            chatToggle.classList.toggle('collapsed');
+            chatMessages.style.display = chatToggle.classList.contains('collapsed') ? 'none' : 'flex';
+            document.querySelector('.chat-input-area').style.display = chatToggle.classList.contains('collapsed') ? 'none' : 'flex';
+        });
+    }
+
+    addChatMessage(playerName, symbol, message) {
+        const chatMessages = document.getElementById('chat-messages');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'chat-message';
+        const config = PLAYER_CONFIGS[symbol];
+        msgDiv.innerHTML = `<span class="sender" style="color: ${config.color}">${playerName}:</span>${message}`;
+        chatMessages.appendChild(msgDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    setupSocketListeners() {
+        this.socket.on('moveMade', (data) => {
+            this.handleMoveMade(data);
+        });
+
+        this.socket.on('gameReset', (data) => {
+            this.handleGameReset(data);
+        });
+
+        this.socket.on('playerLeft', (data) => {
+            this.handlePlayerLeft(data);
+        });
+
+        this.socket.on('chatMessage', (data) => {
+            this.addChatMessage(data.playerName, data.symbol, data.message);
+        });
+
+        this.socket.on('moveError', (data) => {
+            console.error('Move error:', data.error);
+        });
+    }
+
+    handleMoveMade(data) {
+        const { moveData, board, state, gameOver, winner, winnerName, winningCells, draw } = data;
+
+        this.board = board;
+        this.moveCounters = state.moveCounters;
+        this.currentPlayerIndex = state.currentPlayerIndex;
+
+        // Update cell display
+        if (moveData.action === 'mark' || moveData.action === 'move') {
+            this.updateCellDisplay(moveData.index);
+        }
+        if (moveData.action === 'delete') {
+            this.clearCellDisplay(moveData.index);
+        }
+        if (moveData.action === 'move' && moveData.sourceIndex !== undefined) {
+            this.clearCellDisplay(moveData.sourceIndex);
+        }
+
+        if (gameOver) {
+            this.gameActive = false;
+            if (winner) {
+                this.winningCells = winningCells;
+                this.displayWinner(winner, winnerName);
+                this.highlightWinningCells();
+                this.scores[winner]++;
+                this.updateScores();
+            } else if (draw) {
+                this.displayDraw();
+            }
+        } else {
+            this.gameActive = true;
+            this.updateDisplay();
+            this.setAction('mark');
+            this.updateActionButtons();
+        }
+    }
+
+    handleGameReset(data) {
+        this.board = data.state.board;
+        this.currentPlayerIndex = data.state.currentPlayerIndex;
+        this.moveCounters = data.state.moveCounters;
+        this.gameActive = true;
+        this.winningCells = [];
+
+        document.querySelectorAll('.cell').forEach(cell => {
+            cell.textContent = '';
+            cell.style.color = '';
+            cell.classList.remove('marked', 'x', 'o', 'd', 't', 's', 'disabled', 'winning');
+        });
+
+        document.getElementById('status').textContent = '';
+        this.setAction('mark');
+        this.updateDisplay();
+        this.updateActionButtons();
+    }
+
+    handlePlayerLeft(data) {
+        this.players = data.state.players;
+        this.gameActive = false;
+
+        const statusDisplay = document.getElementById('status');
+        statusDisplay.textContent = `${data.playerName} left the game`;
+        statusDisplay.style.color = '#dc3545';
+
+        document.querySelectorAll('.cell').forEach(cell => {
+            cell.classList.add('disabled');
+        });
+    }
+
+    createBoard() {
+        const boardElement = document.getElementById('board');
+        boardElement.innerHTML = '';
+        boardElement.style.gridTemplateColumns = `repeat(${this.boardSize}, 1fr)`;
+
+        let fontSize = '2em';
+        if (this.boardSize >= 9) fontSize = '1.2em';
+        else if (this.boardSize >= 8) fontSize = '1.4em';
+        else if (this.boardSize >= 7) fontSize = '1.6em';
+        boardElement.style.setProperty('--cell-font-size', fontSize);
+
+        for (let i = 0; i < this.boardSize * this.boardSize; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.setAttribute('data-index', i);
+            cell.addEventListener('click', () => this.handleCellClick(i));
+            boardElement.appendChild(cell);
+
+            // Render existing marks
+            if (this.board[i]) {
+                this.updateCellDisplay(i);
+            }
+        }
+    }
+
+    createScoreDisplay() {
+        const scoreBoard = document.getElementById('score-board');
+        scoreBoard.innerHTML = '';
+
+        this.players.forEach(player => {
+            const config = PLAYER_CONFIGS[player.symbol];
+            const scoreItem = document.createElement('div');
+            scoreItem.className = 'score-item';
+            scoreItem.innerHTML = `
+                <span class="score-label">${player.name}</span>
+                <span class="score-value" id="score-${player.symbol}" style="color: ${config.color}">0</span>
+            `;
+            scoreBoard.appendChild(scoreItem);
+        });
+    }
+
+    getCurrentPlayer() {
+        return this.players[this.currentPlayerIndex];
+    }
+
+    isMyTurn() {
+        const currentPlayer = this.getCurrentPlayer();
+        return currentPlayer && currentPlayer.symbol === this.mySymbol;
+    }
+
+    handleCellClick(index) {
+        if (!this.gameActive || !this.isMyTurn()) {
+            return;
+        }
+
+        // Emit move to server
+        this.socket.emit('makeMove', {
+            roomCode: this.roomCode,
+            action: this.currentAction,
+            index: index
+        });
+    }
+
+    setAction(action) {
+        if (!this.isActionAvailable(action)) return false;
+
+        this.currentAction = action;
+
+        document.querySelectorAll('.action-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const actionBtn = document.getElementById(`action-${action}`);
+        if (actionBtn) {
+            actionBtn.classList.add('active');
+        }
+
+        return true;
+    }
+
+    isActionAvailable(action) {
+        const counters = this.moveCounters[this.mySymbol];
+        if (!counters) return action === 'mark';
+
+        switch (action) {
+            case 'mark': return true;
+            case 'delete': return counters.movesSinceDelete >= this.deleteCooldown;
+            case 'move': return counters.movesSinceMove >= this.moveCooldown;
+            default: return false;
+        }
+    }
+
+    updateActionButtons() {
+        const actions = ['mark', 'delete', 'move'];
+        const actionSelector = document.getElementById('action-selector');
+
+        if (!this.isMyTurn() || !this.gameActive) {
+            actionSelector.style.opacity = '0.5';
+            actionSelector.style.pointerEvents = 'none';
+        } else {
+            actionSelector.style.opacity = '1';
+            actionSelector.style.pointerEvents = 'auto';
+        }
+
+        actions.forEach(action => {
+            const btn = document.getElementById(`action-${action}`);
+            if (btn) {
+                const isAvailable = this.isActionAvailable(action);
+                if (isAvailable) {
+                    btn.classList.remove('disabled');
+                    btn.disabled = false;
+                } else {
+                    btn.classList.add('disabled');
+                    btn.disabled = true;
+                }
+                this.updateButtonCooldown(btn, action);
+            }
+        });
+
+        if (!this.isActionAvailable(this.currentAction)) {
+            this.setAction('mark');
+        }
+    }
+
+    updateButtonCooldown(btn, action) {
+        const counters = this.moveCounters[this.mySymbol];
+        if (!counters) return;
+
+        if (action === 'mark') {
+            btn.title = 'Mark a cell (always available)';
+            return;
+        }
+
+        const cooldownIndicator = document.getElementById(`cooldown-${action}`);
+        let movesRemaining = 0;
+
+        if (action === 'delete') {
+            movesRemaining = this.deleteCooldown - counters.movesSinceDelete;
+        } else if (action === 'move') {
+            movesRemaining = this.moveCooldown - counters.movesSinceMove;
+        }
+
+        if (movesRemaining <= 0) {
+            if (cooldownIndicator) {
+                cooldownIndicator.textContent = '';
+                cooldownIndicator.classList.remove('visible');
+            }
+        } else {
+            if (cooldownIndicator) {
+                cooldownIndicator.textContent = movesRemaining;
+                cooldownIndicator.classList.add('visible');
+            }
+        }
+    }
+
+    updateCellDisplay(index) {
+        const cell = document.querySelector(`[data-index="${index}"]`);
+        const player = this.board[index];
+        if (player) {
+            const config = PLAYER_CONFIGS[player];
+            cell.textContent = config.symbol;
+            cell.style.color = config.color;
+            cell.classList.add('marked');
+            PLAYER_SYMBOLS.forEach(p => {
+                cell.classList.remove(p.toLowerCase());
+            });
+            cell.classList.add(player.toLowerCase());
+        }
+    }
+
+    clearCellDisplay(index) {
+        const cell = document.querySelector(`[data-index="${index}"]`);
+        cell.textContent = '';
+        cell.style.color = '';
+        cell.classList.remove('marked', 'x', 'o', 'd', 't', 's', 'disabled', 'winning');
+    }
+
+    highlightWinningCells() {
+        this.winningCells.forEach(index => {
+            const cell = document.querySelector(`[data-index="${index}"]`);
+            cell.classList.add('winning');
+        });
+    }
+
+    displayWinner(symbol, name) {
+        const statusDisplay = document.getElementById('status');
+        const config = PLAYER_CONFIGS[symbol];
+        statusDisplay.textContent = `${name} Wins! 🎉`;
+        statusDisplay.style.color = config.color;
+
+        document.querySelectorAll('.cell').forEach(cell => {
+            cell.classList.add('disabled');
+        });
+    }
+
+    displayDraw() {
+        const statusDisplay = document.getElementById('status');
+        statusDisplay.textContent = "It's a Draw! 🤝";
+        statusDisplay.style.color = '#ffc107';
+    }
+
+    updateDisplay() {
+        const currentPlayerDisplay = document.getElementById('current-player');
+        const yourTurnIndicator = document.getElementById('your-turn-indicator');
+        const currentPlayer = this.getCurrentPlayer();
+
+        if (currentPlayer) {
+            const config = PLAYER_CONFIGS[currentPlayer.symbol];
+            currentPlayerDisplay.textContent = currentPlayer.name;
+            currentPlayerDisplay.style.color = config.color;
+
+            if (this.isMyTurn() && this.gameActive) {
+                yourTurnIndicator.style.display = 'inline';
+            } else {
+                yourTurnIndicator.style.display = 'none';
+            }
+        }
+    }
+
+    updateScores() {
+        this.players.forEach(player => {
+            const scoreElement = document.getElementById(`score-${player.symbol}`);
+            if (scoreElement) {
+                scoreElement.textContent = this.scores[player.symbol] || 0;
+            }
+        });
+    }
+
+    requestReset() {
+        this.socket.emit('resetGame', { roomCode: this.roomCode });
+    }
+
+    leaveGame() {
+        this.socket.disconnect();
+        location.reload();
+    }
+}
+
+// ==================== LOCAL GAME CLASS ====================
 class TicTacToe {
     constructor(numPlayers, vsComputer = false) {
         this.numPlayers = numPlayers;
         this.vsComputer = vsComputer;
-        // Determine board size based on number of players
-        // 2 players: 6x6, 3 players: 7x7, 4 players: 8x8, 5 players: 9x9
-        this.boardSize = 4 + numPlayers; // 6, 7, 8, 9
-        this.winLength = 4; // Keep win length at 4 for all sizes
+        this.boardSize = 4 + numPlayers;
+        this.winLength = 4;
         this.board = Array(this.boardSize * this.boardSize).fill('');
-        
-        // Set up players
+
         this.players = PLAYER_SYMBOLS.slice(0, numPlayers);
         this.currentPlayerIndex = 0;
         this.currentPlayer = this.players[0];
-        
-        // In vs computer mode, computer is always player 2 (O)
+
         if (this.vsComputer) {
-            this.computerPlayer = this.players[1]; // Computer is O
-            this.humanPlayer = this.players[0]; // Human is X
+            this.computerPlayer = this.players[1];
+            this.humanPlayer = this.players[0];
         }
-        
+
         this.gameActive = true;
         this.winningCells = [];
         this.currentAction = 'mark';
         this.isComputerTurn = false;
-        
-        // Initialize scores for all players
+
         this.scores = {};
         this.players.forEach(player => {
             this.scores[player] = 0;
         });
-        
+
         this.deleteCooldown = 5;
         this.moveCooldown = 3;
-        
-        // Initialize move counters for all players
+
         this.moveCounters = {};
         this.players.forEach(player => {
             this.moveCounters[player] = {
@@ -52,59 +478,53 @@ class TicTacToe {
                 movesSinceMove: this.moveCooldown
             };
         });
-        
+
         this.initializeGame();
     }
-    
+
     initializeGame() {
-        // Create board dynamically
         this.createBoard();
-        
-        // Create score display
         this.createScoreDisplay();
-        
+
         const resetBtn = document.getElementById('reset-btn');
+        const newGameBtn = document.getElementById('new-game-btn');
         const actionButtons = document.querySelectorAll('.action-btn');
-        
-        // Add reset button listener
+
         resetBtn.addEventListener('click', () => this.resetGame());
-        
-        // Add action button listeners
+        newGameBtn.addEventListener('click', () => location.reload());
+
         actionButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
-                if (e.target.disabled) return;
-                const action = e.target.getAttribute('data-action');
+                if (e.target.disabled || e.target.closest('.action-btn').disabled) return;
+                const action = e.target.closest('.action-btn').getAttribute('data-action');
                 if (this.isActionAvailable(action)) {
                     this.setAction(action);
                     this.updateActionButtons();
                 }
             });
         });
-        
-        // Initial display update
+
+        // Hide online elements
+        document.getElementById('online-indicator').style.display = 'none';
+        document.getElementById('chat-container').style.display = 'none';
+        document.getElementById('your-turn-indicator').style.display = 'none';
+
         this.updateDisplay();
         this.updateScores();
         this.updateActionButtons();
     }
-    
+
     createBoard() {
         const boardElement = document.getElementById('board');
-        boardElement.innerHTML = ''; // Clear existing cells
+        boardElement.innerHTML = '';
         boardElement.style.gridTemplateColumns = `repeat(${this.boardSize}, 1fr)`;
-        
-        // Adjust cell font size based on board size
-        // Smaller boards get larger fonts, larger boards get smaller fonts
+
         let fontSize = '2em';
-        if (this.boardSize >= 9) {
-            fontSize = '1.2em';
-        } else if (this.boardSize >= 8) {
-            fontSize = '1.4em';
-        } else if (this.boardSize >= 7) {
-            fontSize = '1.6em';
-        }
+        if (this.boardSize >= 9) fontSize = '1.2em';
+        else if (this.boardSize >= 8) fontSize = '1.4em';
+        else if (this.boardSize >= 7) fontSize = '1.6em';
         boardElement.style.setProperty('--cell-font-size', fontSize);
-        
-        // Create cells
+
         for (let i = 0; i < this.boardSize * this.boardSize; i++) {
             const cell = document.createElement('div');
             cell.className = 'cell';
@@ -113,11 +533,11 @@ class TicTacToe {
             boardElement.appendChild(cell);
         }
     }
-    
+
     createScoreDisplay() {
         const scoreBoard = document.getElementById('score-board');
-        scoreBoard.innerHTML = ''; // Clear existing scores
-        
+        scoreBoard.innerHTML = '';
+
         this.players.forEach(player => {
             const config = PLAYER_CONFIGS[player];
             const scoreItem = document.createElement('div');
@@ -131,14 +551,14 @@ class TicTacToe {
             scoreBoard.appendChild(scoreItem);
         });
     }
-    
+
     handleCellClick(index) {
         if (!this.gameActive || this.isComputerTurn) {
-            return; // Don't allow clicks during computer's turn
+            return;
         }
-        
+
         let actionPerformed = false;
-        
+
         switch (this.currentAction) {
             case 'mark':
                 actionPerformed = this.handleMark(index);
@@ -150,12 +570,10 @@ class TicTacToe {
                 actionPerformed = this.handleMove(index);
                 break;
         }
-        
+
         if (actionPerformed) {
-            // Update move counters based on action
             this.updateMoveCounters(this.currentAction);
-            
-            // Check for win after action
+
             if (this.checkWin()) {
                 this.gameActive = false;
                 this.displayWinner();
@@ -164,14 +582,11 @@ class TicTacToe {
                 this.gameActive = false;
                 this.displayDraw();
             } else {
-                // Switch to next player
                 this.nextPlayer();
                 this.updateDisplay();
-                // Reset to mark action after turn
                 this.setAction('mark');
                 this.updateActionButtons();
-                
-                // If it's computer's turn in vs computer mode, make computer move
+
                 if (this.vsComputer && this.currentPlayer === this.computerPlayer && this.gameActive) {
                     this.isComputerTurn = true;
                     this.makeComputerMove();
@@ -179,68 +594,52 @@ class TicTacToe {
             }
         }
     }
-    
+
     nextPlayer() {
         this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.numPlayers;
         this.currentPlayer = this.players[this.currentPlayerIndex];
     }
-    
+
     handleMark(index) {
-        if (this.board[index] !== '') {
-            return false;
-        }
-        
+        if (this.board[index] !== '') return false;
         this.board[index] = this.currentPlayer;
         this.updateCellDisplay(index);
         return true;
     }
-    
+
     handleDelete(index) {
-        // Can delete any opponent's cell
-        if (this.board[index] === '' || this.board[index] === this.currentPlayer) {
-            return false;
-        }
-        
+        if (this.board[index] === '' || this.board[index] === this.currentPlayer) return false;
         this.board[index] = '';
         this.clearCellDisplay(index);
         return true;
     }
-    
+
     handleMove(index) {
-        if (this.board[index] !== '') {
-            return false;
-        }
-        
-        // Find adjacent cells with current player's mark
+        if (this.board[index] !== '') return false;
         const adjacentIndex = this.findAdjacentOwnCell(index);
-        if (adjacentIndex === -1) {
-            return false;
-        }
-        
-        // Move the mark
+        if (adjacentIndex === -1) return false;
         this.board[index] = this.currentPlayer;
         this.board[adjacentIndex] = '';
         this.updateCellDisplay(index);
         this.clearCellDisplay(adjacentIndex);
         return true;
     }
-    
+
     findAdjacentOwnCell(index) {
         const size = this.boardSize;
         const row = Math.floor(index / size);
         const col = index % size;
-        
-        // Check all 8 adjacent cells (including diagonals)
+
         const directions = [
             [-1, -1], [-1, 0], [-1, 1],
-            [0, -1],           [0, 1],
-            [1, -1],  [1, 0],  [1, 1]
+            [0, -1], [0, 1],
+            [1, -1], [1, 0], [1, 1]
         ];
-        
+
         for (const [dr, dc] of directions) {
             const newRow = row + dr;
             const newCol = col + dc;
-            
+
             if (newRow >= 0 && newRow < size && newCol >= 0 && newCol < size) {
                 const adjacentIndex = newRow * size + newCol;
                 if (this.board[adjacentIndex] === this.currentPlayer) {
@@ -248,18 +647,15 @@ class TicTacToe {
                 }
             }
         }
-        
+
         return -1;
     }
-    
+
     setAction(action) {
-        if (!this.isActionAvailable(action)) {
-            return false;
-        }
-        
+        if (!this.isActionAvailable(action)) return false;
+
         this.currentAction = action;
-        
-        // Update button styles
+
         document.querySelectorAll('.action-btn').forEach(btn => {
             btn.classList.remove('active');
         });
@@ -267,36 +663,31 @@ class TicTacToe {
         if (actionBtn) {
             actionBtn.classList.add('active');
         }
-        
-        // Clear any status messages
+
         const statusDisplay = document.getElementById('status');
         if (!statusDisplay.textContent.includes('Wins') && !statusDisplay.textContent.includes('Draw')) {
             statusDisplay.textContent = '';
         }
-        
+
         return true;
     }
-    
+
     isActionAvailable(action) {
         const player = this.currentPlayer;
         const counters = this.moveCounters[player];
-        
+
         switch (action) {
-            case 'mark':
-                return true;
-            case 'delete':
-                return counters.movesSinceDelete >= this.deleteCooldown;
-            case 'move':
-                return counters.movesSinceMove >= this.moveCooldown;
-            default:
-                return false;
+            case 'mark': return true;
+            case 'delete': return counters.movesSinceDelete >= this.deleteCooldown;
+            case 'move': return counters.movesSinceMove >= this.moveCooldown;
+            default: return false;
         }
     }
-    
+
     updateMoveCounters(action) {
         const player = this.currentPlayer;
         const counters = this.moveCounters[player];
-        
+
         if (action === 'delete') {
             counters.movesSinceDelete = 0;
             counters.movesSinceMove++;
@@ -308,18 +699,17 @@ class TicTacToe {
             counters.movesSinceMove++;
         }
     }
-    
+
     updateActionButtons() {
         const actions = ['mark', 'delete', 'move'];
         const actionSelector = document.getElementById('action-selector');
-        
-        // Hide action selector during computer's turn in vs computer mode
+
         if (this.vsComputer && this.isComputerTurn) {
             if (actionSelector) actionSelector.style.display = 'none';
             return;
         }
         if (actionSelector) actionSelector.style.display = 'block';
-        
+
         actions.forEach(action => {
             const btn = document.getElementById(`action-${action}`);
             if (btn) {
@@ -335,25 +725,24 @@ class TicTacToe {
                 }
             }
         });
-        
-        // If current action is no longer available, switch to mark
+
         if (!this.isActionAvailable(this.currentAction)) {
             this.setAction('mark');
         }
     }
-    
+
     updateButtonCooldown(btn, action) {
         const player = this.currentPlayer;
         const counters = this.moveCounters[player];
-        
+
         if (action === 'mark') {
             btn.title = 'Mark a cell (always available)';
             return;
         }
-        
+
         const cooldownIndicator = document.getElementById(`cooldown-${action}`);
         let movesRemaining = 0;
-        
+
         if (action === 'delete') {
             movesRemaining = this.deleteCooldown - counters.movesSinceDelete;
             if (movesRemaining <= 0) {
@@ -386,7 +775,7 @@ class TicTacToe {
             }
         }
     }
-    
+
     updateCellDisplay(index) {
         const cell = document.querySelector(`[data-index="${index}"]`);
         const player = this.board[index];
@@ -395,7 +784,6 @@ class TicTacToe {
             cell.textContent = config.symbol;
             cell.style.color = config.color;
             cell.classList.add('marked');
-            // Remove all player classes and add current one
             this.players.forEach(p => {
                 const pLower = p.toLowerCase();
                 cell.classList.remove('x', 'o', 'd', 't', 's', pLower);
@@ -403,20 +791,19 @@ class TicTacToe {
             cell.classList.add(player.toLowerCase());
         }
     }
-    
+
     clearCellDisplay(index) {
         const cell = document.querySelector(`[data-index="${index}"]`);
         cell.textContent = '';
         cell.style.color = '';
         cell.classList.remove('marked', 'x', 'o', 'c', 't', 's', 'disabled', 'winning');
     }
-    
+
     checkWin() {
         const size = this.boardSize;
         const winLength = this.winLength;
         const player = this.currentPlayer;
-        
-        // Check rows
+
         for (let row = 0; row < size; row++) {
             for (let col = 0; col <= size - winLength; col++) {
                 const indices = [];
@@ -424,9 +811,7 @@ class TicTacToe {
                 for (let i = 0; i < winLength; i++) {
                     const idx = row * size + col + i;
                     indices.push(idx);
-                    if (this.board[idx] === player) {
-                        count++;
-                    }
+                    if (this.board[idx] === player) count++;
                 }
                 if (count === winLength) {
                     this.winningCells = indices;
@@ -434,8 +819,7 @@ class TicTacToe {
                 }
             }
         }
-        
-        // Check columns
+
         for (let col = 0; col < size; col++) {
             for (let row = 0; row <= size - winLength; row++) {
                 const indices = [];
@@ -443,9 +827,7 @@ class TicTacToe {
                 for (let i = 0; i < winLength; i++) {
                     const idx = (row + i) * size + col;
                     indices.push(idx);
-                    if (this.board[idx] === player) {
-                        count++;
-                    }
+                    if (this.board[idx] === player) count++;
                 }
                 if (count === winLength) {
                     this.winningCells = indices;
@@ -453,8 +835,7 @@ class TicTacToe {
                 }
             }
         }
-        
-        // Check diagonal (top-left to bottom-right)
+
         for (let row = 0; row <= size - winLength; row++) {
             for (let col = 0; col <= size - winLength; col++) {
                 const indices = [];
@@ -462,9 +843,7 @@ class TicTacToe {
                 for (let i = 0; i < winLength; i++) {
                     const idx = (row + i) * size + (col + i);
                     indices.push(idx);
-                    if (this.board[idx] === player) {
-                        count++;
-                    }
+                    if (this.board[idx] === player) count++;
                 }
                 if (count === winLength) {
                     this.winningCells = indices;
@@ -472,8 +851,7 @@ class TicTacToe {
                 }
             }
         }
-        
-        // Check diagonal (top-right to bottom-left)
+
         for (let row = 0; row <= size - winLength; row++) {
             for (let col = winLength - 1; col < size; col++) {
                 const indices = [];
@@ -481,9 +859,7 @@ class TicTacToe {
                 for (let i = 0; i < winLength; i++) {
                     const idx = (row + i) * size + (col - i);
                     indices.push(idx);
-                    if (this.board[idx] === player) {
-                        count++;
-                    }
+                    if (this.board[idx] === player) count++;
                 }
                 if (count === winLength) {
                     this.winningCells = indices;
@@ -491,50 +867,48 @@ class TicTacToe {
                 }
             }
         }
-        
+
         return false;
     }
-    
+
     checkDraw() {
         return this.board.every(cell => cell !== '') && !this.checkWin();
     }
-    
+
     highlightWinningCells() {
         this.winningCells.forEach(index => {
             const cell = document.querySelector(`[data-index="${index}"]`);
             cell.classList.add('winning');
         });
     }
-    
+
     displayWinner() {
         const statusDisplay = document.getElementById('status');
         const config = PLAYER_CONFIGS[this.currentPlayer];
         statusDisplay.textContent = `Player ${config.name} Wins! 🎉`;
         statusDisplay.style.color = config.color;
-        
-        // Update score
+
         this.scores[this.currentPlayer]++;
         this.updateScores();
-        
-        // Disable all cells
+
         document.querySelectorAll('.cell').forEach(cell => {
             cell.classList.add('disabled');
         });
     }
-    
+
     displayDraw() {
         const statusDisplay = document.getElementById('status');
         statusDisplay.textContent = "It's a Draw! 🤝";
         statusDisplay.style.color = '#ffc107';
     }
-    
+
     updateDisplay() {
         const currentPlayerDisplay = document.getElementById('current-player');
         const config = PLAYER_CONFIGS[this.currentPlayer];
         currentPlayerDisplay.textContent = config.name;
         currentPlayerDisplay.style.color = config.color;
     }
-    
+
     updateScores() {
         this.players.forEach(player => {
             const scoreElement = document.getElementById(`score-${player}`);
@@ -543,66 +917,55 @@ class TicTacToe {
             }
         });
     }
-    
-    // Minimax with alpha-beta pruning for computer AI
+
+    // AI Methods
     minimax(board, depth, alpha, beta, isMaximizing, player, opponent, moveCounters) {
-        // Check for win
         const winner = this.checkWinner(board, player);
         const loser = this.checkWinner(board, opponent);
-        
-        if (winner === player) return 1000 - depth; // Prefer faster wins
-        if (loser === opponent) return -1000 + depth; // Avoid slower losses
-        if (this.isBoardFull(board)) return 0; // Draw
-        
-        // Limit depth to prevent excessive computation
+
+        if (winner === player) return 1000 - depth;
+        if (loser === opponent) return -1000 + depth;
+        if (this.isBoardFull(board)) return 0;
+
         if (depth >= 4) {
             return this.evaluateBoard(board, player, opponent);
         }
-        
+
         if (isMaximizing) {
             let maxEval = -Infinity;
             const moves = this.getPossibleMoves(board, player, opponent, moveCounters, true);
-            
+
             for (const move of moves) {
                 const newBoard = [...board];
                 const newCounters = JSON.parse(JSON.stringify(moveCounters));
-                
-                // Apply move
                 this.applyMove(newBoard, move, player, newCounters);
-                
                 const evalScore = this.minimax(newBoard, depth + 1, alpha, beta, false, player, opponent, newCounters);
                 maxEval = Math.max(maxEval, evalScore);
                 alpha = Math.max(alpha, evalScore);
-                
-                if (beta <= alpha) break; // Alpha-beta pruning
+                if (beta <= alpha) break;
             }
             return maxEval;
         } else {
             let minEval = Infinity;
             const moves = this.getPossibleMoves(board, opponent, player, moveCounters, false);
-            
+
             for (const move of moves) {
                 const newBoard = [...board];
                 const newCounters = JSON.parse(JSON.stringify(moveCounters));
-                
-                // Apply move
                 this.applyMove(newBoard, move, opponent, newCounters);
-                
                 const evalScore = this.minimax(newBoard, depth + 1, alpha, beta, true, player, opponent, newCounters);
                 minEval = Math.min(minEval, evalScore);
                 beta = Math.min(beta, evalScore);
-                
-                if (beta <= alpha) break; // Alpha-beta pruning
+                if (beta <= alpha) break;
             }
             return minEval;
         }
     }
-    
+
     checkWinner(board, player) {
         const size = this.boardSize;
         const winLength = this.winLength;
-        
-        // Check rows, columns, and diagonals
+
         for (let row = 0; row < size; row++) {
             for (let col = 0; col <= size - winLength; col++) {
                 let count = 0;
@@ -612,7 +975,7 @@ class TicTacToe {
                 if (count === winLength) return player;
             }
         }
-        
+
         for (let col = 0; col < size; col++) {
             for (let row = 0; row <= size - winLength; row++) {
                 let count = 0;
@@ -622,7 +985,7 @@ class TicTacToe {
                 if (count === winLength) return player;
             }
         }
-        
+
         for (let row = 0; row <= size - winLength; row++) {
             for (let col = 0; col <= size - winLength; col++) {
                 let count = 0;
@@ -632,7 +995,7 @@ class TicTacToe {
                 if (count === winLength) return player;
             }
         }
-        
+
         for (let row = 0; row <= size - winLength; row++) {
             for (let col = winLength - 1; col < size; col++) {
                 let count = 0;
@@ -642,37 +1005,35 @@ class TicTacToe {
                 if (count === winLength) return player;
             }
         }
-        
+
         return null;
     }
-    
+
     isBoardFull(board) {
         return board.every(cell => cell !== '');
     }
-    
+
     evaluateBoard(board, player, opponent) {
         let score = 0;
         const size = this.boardSize;
         const winLength = this.winLength;
-        
-        // Evaluate potential lines
+
         const evaluateLine = (cells) => {
             let playerCount = 0;
             let opponentCount = 0;
-            
+
             for (const cell of cells) {
                 if (cell === player) playerCount++;
                 else if (cell === opponent) opponentCount++;
             }
-            
+
             if (playerCount > 0 && opponentCount === 0) {
                 score += Math.pow(10, playerCount);
             } else if (opponentCount > 0 && playerCount === 0) {
                 score -= Math.pow(10, opponentCount);
             }
         };
-        
-        // Check rows
+
         for (let row = 0; row < size; row++) {
             for (let col = 0; col <= size - winLength; col++) {
                 const cells = [];
@@ -682,8 +1043,7 @@ class TicTacToe {
                 evaluateLine(cells);
             }
         }
-        
-        // Check columns
+
         for (let col = 0; col < size; col++) {
             for (let row = 0; row <= size - winLength; row++) {
                 const cells = [];
@@ -693,8 +1053,7 @@ class TicTacToe {
                 evaluateLine(cells);
             }
         }
-        
-        // Check diagonals
+
         for (let row = 0; row <= size - winLength; row++) {
             for (let col = 0; col <= size - winLength; col++) {
                 const cells = [];
@@ -704,7 +1063,7 @@ class TicTacToe {
                 evaluateLine(cells);
             }
         }
-        
+
         for (let row = 0; row <= size - winLength; row++) {
             for (let col = winLength - 1; col < size; col++) {
                 const cells = [];
@@ -714,23 +1073,21 @@ class TicTacToe {
                 evaluateLine(cells);
             }
         }
-        
+
         return score;
     }
-    
+
     getPossibleMoves(board, player, opponent, moveCounters, isMaximizing) {
         const moves = [];
         const size = this.boardSize;
         const counters = moveCounters[player];
-        
-        // Mark moves
+
         for (let i = 0; i < board.length; i++) {
             if (board[i] === '') {
                 moves.push({ action: 'mark', index: i });
             }
         }
-        
-        // Delete moves (if available)
+
         if (counters.movesSinceDelete >= this.deleteCooldown) {
             for (let i = 0; i < board.length; i++) {
                 if (board[i] === opponent) {
@@ -738,16 +1095,14 @@ class TicTacToe {
                 }
             }
         }
-        
-        // Move moves (if available)
+
         if (counters.movesSinceMove >= this.moveCooldown) {
             for (let i = 0; i < board.length; i++) {
                 if (board[i] === '') {
-                    // Check if there's an adjacent cell with player's mark
                     const row = Math.floor(i / size);
                     const col = i % size;
-                    const directions = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-                    
+                    const directions = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+
                     for (const [dr, dc] of directions) {
                         const newRow = row + dr;
                         const newCol = col + dc;
@@ -762,13 +1117,13 @@ class TicTacToe {
                 }
             }
         }
-        
+
         return moves;
     }
-    
+
     applyMove(board, move, player, moveCounters) {
         const counters = moveCounters[player];
-        
+
         if (move.action === 'mark') {
             board[move.index] = player;
             counters.movesSinceDelete++;
@@ -784,67 +1139,61 @@ class TicTacToe {
             counters.movesSinceDelete++;
         }
     }
-    
+
     makeComputerMove() {
         if (!this.isComputerTurn || !this.gameActive) return;
-        
-        // Show thinking indicator
+
         const thinkingIndicator = document.getElementById('computer-thinking');
         const actionSelector = document.getElementById('action-selector');
         if (thinkingIndicator) thinkingIndicator.style.display = 'inline';
         if (actionSelector) actionSelector.style.opacity = '0.5';
-        
-        // Add small delay for better UX
+
         setTimeout(() => {
             const board = [...this.board];
             const moveCounters = JSON.parse(JSON.stringify(this.moveCounters));
             const moves = this.getPossibleMoves(board, this.computerPlayer, this.humanPlayer, moveCounters, true);
-            
+
             if (moves.length === 0) {
                 if (thinkingIndicator) thinkingIndicator.style.display = 'none';
                 if (actionSelector) actionSelector.style.opacity = '1';
                 return;
             }
-            
+
             let bestMove = null;
             let bestScore = -Infinity;
-            
-            // Evaluate all moves
+
             for (const move of moves) {
                 const newBoard = [...board];
                 const newCounters = JSON.parse(JSON.stringify(moveCounters));
                 this.applyMove(newBoard, move, this.computerPlayer, newCounters);
-                
-                const score = this.minimax(newBoard, 0, -Infinity, Infinity, false, 
+
+                const score = this.minimax(newBoard, 0, -Infinity, Infinity, false,
                     this.computerPlayer, this.humanPlayer, newCounters);
-                
+
                 if (score > bestScore) {
                     bestScore = score;
                     bestMove = move;
                 }
             }
-            
+
             if (bestMove) {
-                // Execute the best move
                 this.currentAction = bestMove.action;
                 this.executeComputerMove(bestMove);
             }
-            
-            // Hide thinking indicator
+
             if (thinkingIndicator) thinkingIndicator.style.display = 'none';
             if (actionSelector) actionSelector.style.opacity = '1';
-        }, 500); // 500ms delay
+        }, 500);
     }
-    
+
     executeComputerMove(move) {
         let actionPerformed = false;
-        
+
         if (move.action === 'mark') {
             actionPerformed = this.handleMark(move.index);
         } else if (move.action === 'delete') {
             actionPerformed = this.handleDelete(move.index);
         } else if (move.action === 'move') {
-            // For move action, we need to find the source cell
             const adjacentIndex = this.findAdjacentOwnCell(move.index);
             if (adjacentIndex !== -1) {
                 this.board[move.index] = this.currentPlayer;
@@ -854,11 +1203,11 @@ class TicTacToe {
                 actionPerformed = true;
             }
         }
-        
+
         if (actionPerformed) {
             this.updateMoveCounters(move.action);
             this.isComputerTurn = false;
-            
+
             if (this.checkWin()) {
                 this.gameActive = false;
                 this.displayWinner();
@@ -874,7 +1223,7 @@ class TicTacToe {
             }
         }
     }
-    
+
     resetGame() {
         this.board = Array(this.boardSize * this.boardSize).fill('');
         this.currentPlayerIndex = 0;
@@ -882,33 +1231,29 @@ class TicTacToe {
         this.gameActive = true;
         this.winningCells = [];
         this.isComputerTurn = false;
-        
-        // Reset move counters
+
         this.players.forEach(player => {
             this.moveCounters[player] = {
                 movesSinceDelete: this.deleteCooldown,
                 movesSinceMove: this.moveCooldown
             };
         });
-        
+
         this.setAction('mark');
-        
-        // Clear all cells
+
         document.querySelectorAll('.cell').forEach(cell => {
             cell.textContent = '';
             cell.style.color = '';
             cell.classList.remove('marked', 'x', 'o', 'd', 't', 's', 'disabled', 'winning');
         });
-        
-        // Reset status and thinking indicator
+
         document.getElementById('status').textContent = '';
         const thinkingIndicator = document.getElementById('computer-thinking');
         if (thinkingIndicator) thinkingIndicator.style.display = 'none';
-        
+
         this.updateDisplay();
         this.updateActionButtons();
-        
-        // If computer goes first in vs computer mode
+
         if (this.vsComputer && this.currentPlayer === this.computerPlayer && this.gameActive) {
             this.isComputerTurn = true;
             this.makeComputerMove();
@@ -916,36 +1261,267 @@ class TicTacToe {
     }
 }
 
-// Game mode and player selection
+// ==================== MAIN APP LOGIC ====================
 let game = null;
+let socket = null;
+let selectedPlayerCount = 2;
 
 document.addEventListener('DOMContentLoaded', () => {
-    const modeModal = document.getElementById('game-mode-modal');
-    const playerModal = document.getElementById('player-selection-modal');
+    // Get DOM elements
+    const mainMenuModal = document.getElementById('main-menu-modal');
+    const onlineLobbyModal = document.getElementById('online-lobby-modal');
+    const waitingRoomModal = document.getElementById('waiting-room-modal');
+    const gameModeModal = document.getElementById('game-mode-modal');
+    const playerSelectionModal = document.getElementById('player-selection-modal');
     const gameContainer = document.getElementById('game-container');
+
+    // Main menu buttons
+    const btnOnline = document.getElementById('btn-online');
+    const btnLocal = document.getElementById('btn-local');
+
+    // Lobby elements
+    const lobbyBackBtn = document.getElementById('lobby-back-btn');
+    const playerNameInput = document.getElementById('player-name');
+    const countBtns = document.querySelectorAll('.count-btn');
+    const btnCreateRoom = document.getElementById('btn-create-room');
+    const roomCodeInput = document.getElementById('room-code-input');
+    const btnJoinRoom = document.getElementById('btn-join-room');
+    const lobbyError = document.getElementById('lobby-error');
+
+    // Waiting room elements
+    const displayRoomCode = document.getElementById('display-room-code');
+    const copyCodeBtn = document.getElementById('copy-code-btn');
+    const playersList = document.getElementById('players-list');
+    const playersWaitingText = document.getElementById('players-waiting-text');
+    const btnStartGame = document.getElementById('btn-start-game');
+    const btnLeaveRoom = document.getElementById('btn-leave-room');
+
+    // Local game elements
+    const modeBackBtn = document.getElementById('mode-back-btn');
+    const playersBackBtn = document.getElementById('players-back-btn');
     const modeOptionButtons = document.querySelectorAll('.mode-option-btn');
     const playerOptionButtons = document.querySelectorAll('.player-option-btn');
-    
+
+    // Helper functions
+    function hideAllModals() {
+        mainMenuModal.style.display = 'none';
+        onlineLobbyModal.style.display = 'none';
+        waitingRoomModal.style.display = 'none';
+        gameModeModal.style.display = 'none';
+        playerSelectionModal.style.display = 'none';
+    }
+
+    function showError(message) {
+        lobbyError.textContent = message;
+        setTimeout(() => {
+            lobbyError.textContent = '';
+        }, 5000);
+    }
+
+    // Main menu handlers
+    btnOnline.addEventListener('click', () => {
+        hideAllModals();
+        onlineLobbyModal.style.display = 'flex';
+
+        // Initialize socket connection
+        if (!socket) {
+            socket = io();
+            setupSocketListeners();
+        }
+    });
+
+    btnLocal.addEventListener('click', () => {
+        hideAllModals();
+        gameModeModal.style.display = 'flex';
+    });
+
+    // Lobby handlers
+    lobbyBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    countBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            countBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedPlayerCount = parseInt(btn.getAttribute('data-count'));
+        });
+    });
+
+    btnCreateRoom.addEventListener('click', () => {
+        const playerName = playerNameInput.value.trim();
+        if (!playerName) {
+            showError('Please enter your name');
+            return;
+        }
+
+        socket.emit('createRoom', {
+            playerName,
+            numPlayers: selectedPlayerCount
+        });
+    });
+
+    btnJoinRoom.addEventListener('click', () => {
+        const playerName = playerNameInput.value.trim();
+        const roomCode = roomCodeInput.value.trim().toUpperCase();
+
+        if (!playerName) {
+            showError('Please enter your name');
+            return;
+        }
+        if (!roomCode) {
+            showError('Please enter a room code');
+            return;
+        }
+
+        socket.emit('joinRoom', {
+            playerName,
+            roomCode
+        });
+    });
+
+    // Waiting room handlers
+    copyCodeBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(displayRoomCode.textContent);
+        copyCodeBtn.textContent = '✓';
+        setTimeout(() => {
+            copyCodeBtn.textContent = '📋';
+        }, 2000);
+    });
+
+    btnStartGame.addEventListener('click', () => {
+        const roomCode = displayRoomCode.textContent;
+        socket.emit('startGame', { roomCode });
+    });
+
+    btnLeaveRoom.addEventListener('click', () => {
+        socket.disconnect();
+        socket = null;
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    // Local game handlers
+    modeBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    playersBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        gameModeModal.style.display = 'flex';
+    });
+
     modeOptionButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             const mode = e.target.getAttribute('data-mode');
             if (mode === 'computer') {
-                modeModal.style.display = 'none';
+                hideAllModals();
                 gameContainer.style.display = 'block';
-                game = new TicTacToe(2, true); // 2 players, vs computer
+                game = new TicTacToe(2, true);
             } else {
-                modeModal.style.display = 'none';
-                playerModal.style.display = 'flex';
+                hideAllModals();
+                playerSelectionModal.style.display = 'flex';
             }
         });
     });
-    
+
     playerOptionButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             const numPlayers = parseInt(e.target.getAttribute('data-players'));
-            playerModal.style.display = 'none';
+            hideAllModals();
             gameContainer.style.display = 'block';
             game = new TicTacToe(numPlayers, false);
         });
     });
+
+    // Socket event listeners
+    function setupSocketListeners() {
+        socket.on('roomCreated', (data) => {
+            hideAllModals();
+            waitingRoomModal.style.display = 'flex';
+            displayRoomCode.textContent = data.roomCode;
+            btnStartGame.style.display = 'block';
+            updateWaitingRoom(data.state, data.yourSymbol);
+        });
+
+        socket.on('roomJoined', (data) => {
+            hideAllModals();
+            waitingRoomModal.style.display = 'flex';
+            displayRoomCode.textContent = data.roomCode;
+            btnStartGame.style.display = 'none';
+            updateWaitingRoom(data.state, data.yourSymbol);
+        });
+
+        socket.on('playerJoined', (data) => {
+            updateWaitingRoom(data.state);
+        });
+
+        socket.on('joinError', (data) => {
+            showError(data.error);
+        });
+
+        socket.on('gameError', (data) => {
+            showError(data.error);
+        });
+
+        socket.on('gameStarted', (data) => {
+            hideAllModals();
+            gameContainer.style.display = 'block';
+
+            // Find my symbol
+            const myData = data.state.players.find(p => p.socketId === socket.id);
+            game = new OnlineTicTacToe(socket, data.state, myData.symbol, myData.index);
+        });
+
+        socket.on('playerLeft', (data) => {
+            if (game && game instanceof OnlineTicTacToe) {
+                game.handlePlayerLeft(data);
+            }
+        });
+    }
+
+    function updateWaitingRoom(state, mySymbol = null) {
+        playersList.innerHTML = '';
+
+        const mySocketId = socket.id;
+
+        state.players.forEach(player => {
+            const config = PLAYER_CONFIGS[player.symbol];
+            const isMe = player.socketId === mySocketId;
+            const isHost = player.socketId === state.hostId;
+
+            const playerItem = document.createElement('div');
+            playerItem.className = 'player-item';
+            playerItem.innerHTML = `
+                <div class="player-symbol ${player.symbol.toLowerCase()}">${config.symbol}</div>
+                <span class="player-name">${player.name}</span>
+                ${isHost ? '<span class="player-badge">Host</span>' : ''}
+                ${isMe ? '<span class="player-badge you">You</span>' : ''}
+            `;
+            playersList.appendChild(playerItem);
+        });
+
+        // Add empty slots
+        for (let i = state.players.length; i < state.numPlayers; i++) {
+            const emptySlot = document.createElement('div');
+            emptySlot.className = 'empty-slot';
+            emptySlot.textContent = 'Waiting for player...';
+            playersList.appendChild(emptySlot);
+        }
+
+        // Update waiting text
+        const remaining = state.numPlayers - state.players.length;
+        if (remaining > 0) {
+            playersWaitingText.textContent = `Waiting for ${remaining} more player${remaining > 1 ? 's' : ''}...`;
+        } else {
+            playersWaitingText.textContent = 'All players joined! Ready to start.';
+        }
+
+        // Show start button only for host when enough players
+        if (socket.id === state.hostId && state.players.length >= 2) {
+            btnStartGame.style.display = 'block';
+        }
+    }
 });
