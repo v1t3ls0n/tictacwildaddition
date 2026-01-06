@@ -1044,6 +1044,13 @@ h1 {
     box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1);
 }
 
+.hint-text {
+    margin-top: 8px;
+    font-size: 0.8em;
+    color: #666;
+    text-align: left;
+}
+
 /* Chat Styles */
 .chat-container {
     margin-top: 25px;

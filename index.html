@@ -40,6 +40,12 @@
                 <label for="player-name">Your Name</label>
                 <input type="text" id="player-name" placeholder="Enter your name" maxlength="15">
             </div>
+
+            <div class="name-input-section">
+                <label for="server-url">Server URL (Render backend)</label>
+                <input type="text" id="server-url" placeholder="https://your-backend.onrender.com (leave blank for same-origin)" maxlength="200">
+                <div class="hint-text">Use your backend URL here when hosting this page on Vercel.</div>
+            </div>
             
             <div class="lobby-options">
                 <div class="lobby-section">
@@ -208,7 +214,8 @@
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- Use CDN so Online mode works when frontend is hosted separately (e.g., Vercel) -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

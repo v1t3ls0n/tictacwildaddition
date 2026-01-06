@@ -1698,6 +1698,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Lobby elements
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const playerNameInput = document.getElementById('player-name');
+    const serverUrlInput = document.getElementById('server-url');
     const countBtns = document.querySelectorAll('.count-btn');
     const btnCreateRoom = document.getElementById('btn-create-room');
     const roomCodeInput = document.getElementById('room-code-input');
@@ -1739,6 +1740,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     }
 
+    function normalizeServerUrl(raw) {
+        const url = (raw || '').trim();
+        if (!url) return '';
+        // remove trailing slash to avoid double slashes in some environments
+        return url.endsWith('/') ? url.slice(0, -1) : url;
+    }
+
+    function getSocketServerUrl() {
+        // 1) query param ?server=https://...
+        const params = new URLSearchParams(window.location.search);
+        const qp = normalizeServerUrl(params.get('server'));
+        if (qp) return qp;
+
+        // 2) saved value (Vercel frontend -> Render backend)
+        const saved = normalizeServerUrl(localStorage.getItem('socketServerUrl'));
+        if (saved) return saved;
+
+        // 3) default same-origin (works when served from backend directly)
+        return window.location.origin;
+    }
+
+    function saveSocketServerUrl(url) {
+        const normalized = normalizeServerUrl(url);
+        if (normalized) localStorage.setItem('socketServerUrl', normalized);
+        else localStorage.removeItem('socketServerUrl');
+    }
+
     // Main menu handlers
     btnOnline.addEventListener('click', () => {
         hideAllModals();
@@ -1746,7 +1774,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initialize socket connection
         if (!socket) {
-            socket = io();
+            // prefill server URL input for convenience
+            if (serverUrlInput) {
+                const current = getSocketServerUrl();
+                // if same-origin, keep empty to reduce confusion
+                serverUrlInput.value = current === window.location.origin ? '' : current;
+            }
+
+            const serverUrl = serverUrlInput ? normalizeServerUrl(serverUrlInput.value) : '';
+            saveSocketServerUrl(serverUrl);
+
+            const connectUrl = serverUrl || window.location.origin;
+            socket = io(connectUrl, {
+                transports: ['websocket', 'polling']
+            });
             setupSocketListeners();
         }
     });
@@ -1777,6 +1818,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const serverUrl = serverUrlInput ? normalizeServerUrl(serverUrlInput.value) : '';
+        saveSocketServerUrl(serverUrl);
+
         socket.emit('createRoom', {
             playerName,
             numPlayers: selectedPlayerCount
@@ -1795,6 +1839,9 @@ document.addEventListener('DOMContentLoaded', () => {
             showError('Please enter a room code');
             return;
         }
+
+        const serverUrl = serverUrlInput ? normalizeServerUrl(serverUrlInput.value) : '';
+        saveSocketServerUrl(serverUrl);
 
         socket.emit('joinRoom', {
             playerName,
