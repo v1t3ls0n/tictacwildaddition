@@ -1265,6 +1265,100 @@ class TicTacToe {
         }
     }
 
+    // Optimized move ordering: prioritize winning moves, blocking moves, then others
+    orderMoves(moves, board, player, opponents) {
+        const ordered = [];
+        const winning = [];
+        const blocking = [];
+        const others = [];
+
+        for (const move of moves) {
+            const testBoard = [...board];
+            if (move.action === 'mark') {
+                testBoard[move.index] = player;
+                // Check if this is a winning move
+                if (this.checkWinnerQuick(testBoard, player)) {
+                    winning.push(move);
+                    continue;
+                }
+                // Check if this blocks an opponent win
+                let blocksWin = false;
+                for (const opp of opponents) {
+                    testBoard[move.index] = opp;
+                    if (this.checkWinnerQuick(testBoard, opp)) {
+                        blocking.push(move);
+                        blocksWin = true;
+                        break;
+                    }
+                    testBoard[move.index] = '';
+                }
+                if (!blocksWin) {
+                    others.push(move);
+                }
+            } else {
+                others.push(move);
+            }
+        }
+
+        // Return ordered: winning moves first, then blocking, then others
+        return [...winning, ...blocking, ...others];
+    }
+
+    // Quick winner check for move ordering (optimized version)
+    checkWinnerQuick(board, player) {
+        const size = this.boardSize;
+        const winLength = this.winLength;
+
+        // Quick check - only check if player has enough pieces
+        const playerCount = board.filter(c => c === player).length;
+        if (playerCount < winLength) return false;
+
+        // Check rows
+        for (let row = 0; row < size; row++) {
+            for (let col = 0; col <= size - winLength; col++) {
+                let count = 0;
+                for (let i = 0; i < winLength; i++) {
+                    if (board[row * size + col + i] === player) count++;
+                }
+                if (count === winLength) return true;
+            }
+        }
+
+        // Check columns
+        for (let col = 0; col < size; col++) {
+            for (let row = 0; row <= size - winLength; row++) {
+                let count = 0;
+                for (let i = 0; i < winLength; i++) {
+                    if (board[(row + i) * size + col] === player) count++;
+                }
+                if (count === winLength) return true;
+            }
+        }
+
+        // Check diagonals
+        for (let row = 0; row <= size - winLength; row++) {
+            for (let col = 0; col <= size - winLength; col++) {
+                let count = 0;
+                for (let i = 0; i < winLength; i++) {
+                    if (board[(row + i) * size + (col + i)] === player) count++;
+                }
+                if (count === winLength) return true;
+            }
+        }
+
+        for (let row = 0; row <= size - winLength; row++) {
+            for (let col = winLength - 1; col < size; col++) {
+                let count = 0;
+                for (let i = 0; i < winLength; i++) {
+                    if (board[(row + i) * size + (col - i)] === player) count++;
+                }
+                if (count === winLength) return true;
+            }
+        }
+
+        return false;
+    }
+
     makeComputerMove() {
         if (!this.isComputerTurn || !this.gameActive) return;
 
@@ -1295,18 +1389,52 @@ class TicTacToe {
             const difficulty = this.difficultyLevels[playerIndex] || DEFAULT_DIFFICULTY;
             const maxDepth = DIFFICULTY_LEVELS[difficulty].depth;
 
-            for (const move of moves) {
-                const newBoard = [...board];
-                const newCounters = JSON.parse(JSON.stringify(moveCounters));
-                this.applyMove(newBoard, move, this.currentPlayer, newCounters);
+            // OPTIMIZATION: Order moves for better alpha-beta pruning (winning moves first)
+            moves = this.orderMoves(moves, board, this.currentPlayer, opponents);
 
-                const score = this.minimax(newBoard, 0, -Infinity, Infinity, false,
-                    this.currentPlayer, opponents, newCounters, maxDepth);
+            // OPTIMIZATION: Iterative deepening - start shallow, go deeper if time allows
+            const startTime = performance.now();
+            const maxTime = 3000; // 3 second max thinking time
+            let currentDepth = 1;
 
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMove = move;
+            while (currentDepth <= maxDepth && (performance.now() - startTime) < maxTime) {
+                let depthBestMove = null;
+                let depthBestScore = -Infinity;
+
+                for (const move of moves) {
+                    const newBoard = [...board];
+                    const newCounters = JSON.parse(JSON.stringify(moveCounters));
+                    this.applyMove(newBoard, move, this.currentPlayer, newCounters);
+
+                    const score = this.minimax(newBoard, 0, -Infinity, Infinity, false,
+                        this.currentPlayer, opponents, newCounters, currentDepth);
+
+                    if (score > depthBestScore) {
+                        depthBestScore = score;
+                        depthBestMove = move;
+                    }
+
+                    // Early exit if we found a winning move
+                    if (score > 900) {
+                        bestMove = move;
+                        bestScore = score;
+                        break;
+                    }
+
+                    // Check time limit
+                    if ((performance.now() - startTime) > maxTime) break;
                 }
+
+                // Update best move if we found a better one at this depth
+                if (depthBestScore > bestScore) {
+                    bestMove = depthBestMove;
+                    bestScore = depthBestScore;
+                }
+
+                // If we found a winning move, no need to go deeper
+                if (bestScore > 900) break;
+
+                currentDepth++;
             }
 
             if (bestMove) {
