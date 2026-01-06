@@ -894,6 +894,116 @@ h1 {
     transform: translateY(0);
 }
 
+.config-subtitle {
+    color: #666;
+    margin-bottom: 25px;
+    font-size: 0.95em;
+}
+
+.player-config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.player-config-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 20px;
+    background: #f8f9fc;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.player-config-item:hover {
+    background: #f0f2f7;
+    transform: translateX(5px);
+}
+
+.player-config-symbol {
+    font-size: 2em;
+    font-weight: 700;
+    min-width: 50px;
+    text-align: center;
+}
+
+.player-config-info {
+    flex: 1;
+    text-align: left;
+}
+
+.player-config-name {
+    font-weight: 600;
+    color: #1a1a2e;
+    font-size: 1.1em;
+}
+
+.player-type-toggle {
+    padding: 8px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95em;
+    transition: all 0.3s ease;
+    user-select: none;
+    min-width: 100px;
+    text-align: center;
+}
+
+.player-type-toggle.human {
+    background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(78, 205, 196, 0.4);
+}
+
+.player-type-toggle.computer {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(118, 75, 162, 0.4);
+}
+
+.player-type-toggle:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.player-type-toggle:active {
+    transform: scale(0.98);
+}
+
+.player-config-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.difficulty-select {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 2px solid #e0e0e0;
+    background: white;
+    color: #1a1a2e;
+    font-weight: 600;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Outfit', sans-serif;
+    min-width: 120px;
+}
+
+.difficulty-select:hover {
+    border-color: #764ba2;
+    box-shadow: 0 4px 12px rgba(118, 75, 162, 0.2);
+}
+
+.difficulty-select:focus {
+    outline: none;
+    border-color: #764ba2;
+    box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1);
+}
+
 /* Chat Styles */
 .chat-container {
     margin-top: 25px;

@@ -9,6 +9,16 @@ const PLAYER_CONFIGS = {
 
 const PLAYER_SYMBOLS = ['X', 'O', 'D', 'T', 'S'];
 
+// Computer difficulty levels
+const DIFFICULTY_LEVELS = {
+    'easy': { name: 'Easy', depth: 2, description: 'Quick moves, basic strategy' },
+    'medium': { name: 'Medium', depth: 4, description: 'Balanced play' },
+    'hard': { name: 'Hard', depth: 6, description: 'Strong strategy' },
+    'expert': { name: 'Expert', depth: 8, description: 'Very challenging' }
+};
+
+const DEFAULT_DIFFICULTY = 'medium';
+
 // ==================== ONLINE GAME CLASS ====================
 class OnlineTicTacToe {
     constructor(socket, state, mySymbol, myIndex) {
@@ -442,7 +452,7 @@ class OnlineTicTacToe {
 
 // ==================== LOCAL GAME CLASS ====================
 class TicTacToe {
-    constructor(numPlayers, vsComputer = false) {
+    constructor(numPlayers, vsComputer = false, playerConfig = null, difficultyLevels = null) {
         this.numPlayers = numPlayers;
         this.vsComputer = vsComputer;
         this.boardSize = 4 + numPlayers;
@@ -453,10 +463,38 @@ class TicTacToe {
         this.currentPlayerIndex = 0;
         this.currentPlayer = this.players[0];
 
-        if (this.vsComputer) {
-            this.computerPlayer = this.players[1];
-            this.humanPlayer = this.players[0];
+        // Player configuration: array of booleans, true = human, false = computer
+        // If playerConfig is null, use legacy mode (vsComputer flag)
+        if (playerConfig === null) {
+            if (this.vsComputer) {
+                this.playerConfig = [true, false]; // First is human, second is computer
+            } else {
+                this.playerConfig = Array(numPlayers).fill(true); // All human
+            }
+        } else {
+            this.playerConfig = playerConfig;
         }
+
+        // Difficulty levels: array of difficulty strings (or null for human players)
+        // If difficultyLevels is null, use default difficulty for computer players
+        if (difficultyLevels === null) {
+            this.difficultyLevels = this.players.map((symbol, index) =>
+                !this.playerConfig[index] ? DEFAULT_DIFFICULTY : null
+            );
+        } else {
+            this.difficultyLevels = difficultyLevels;
+        }
+
+        // Store which players are computer
+        this.computerPlayers = [];
+        this.humanPlayers = [];
+        this.players.forEach((symbol, index) => {
+            if (!this.playerConfig[index]) {
+                this.computerPlayers.push(symbol);
+            } else {
+                this.humanPlayers.push(symbol);
+            }
+        });
 
         this.gameActive = true;
         this.winningCells = [];
@@ -538,12 +576,16 @@ class TicTacToe {
         const scoreBoard = document.getElementById('score-board');
         scoreBoard.innerHTML = '';
 
-        this.players.forEach(player => {
+        this.players.forEach((player, index) => {
             const config = PLAYER_CONFIGS[player];
+            const isComputer = !this.playerConfig[index];
+            const difficulty = isComputer ? this.difficultyLevels[index] : null;
+            const difficultyInfo = difficulty ? ` (${DIFFICULTY_LEVELS[difficulty].name})` : '';
+
             const scoreItem = document.createElement('div');
             scoreItem.className = 'score-item';
             scoreItem.innerHTML = `
-                <span class="score-label">${config.name}:</span>
+                <span class="score-label">${config.name}${difficultyInfo}:</span>
                 <span class="score-value" id="score-${player}">0</span>
             `;
             const scoreValue = scoreItem.querySelector(`#score-${player}`);
@@ -553,7 +595,7 @@ class TicTacToe {
     }
 
     handleCellClick(index) {
-        if (!this.gameActive || this.isComputerTurn) {
+        if (!this.gameActive || this.isComputerTurn || this.isComputerPlayer(this.currentPlayer)) {
             return;
         }
 
@@ -587,7 +629,8 @@ class TicTacToe {
                 this.setAction('mark');
                 this.updateActionButtons();
 
-                if (this.vsComputer && this.currentPlayer === this.computerPlayer && this.gameActive) {
+                // Check if current player is a computer player
+                if (this.isComputerPlayer(this.currentPlayer) && this.gameActive) {
                     this.isComputerTurn = true;
                     this.makeComputerMove();
                 }
@@ -700,11 +743,16 @@ class TicTacToe {
         }
     }
 
+    isComputerPlayer(symbol) {
+        const index = this.players.indexOf(symbol);
+        return index !== -1 && !this.playerConfig[index];
+    }
+
     updateActionButtons() {
         const actions = ['mark', 'delete', 'move'];
         const actionSelector = document.getElementById('action-selector');
 
-        if (this.vsComputer && this.isComputerTurn) {
+        if (this.isComputerTurn || this.isComputerPlayer(this.currentPlayer)) {
             if (actionSelector) actionSelector.style.display = 'none';
             return;
         }
@@ -918,28 +966,28 @@ class TicTacToe {
         });
     }
 
-    // AI Methods
-    minimax(board, depth, alpha, beta, isMaximizing, player, opponent, moveCounters) {
+    // AI Methods - Updated to handle multiple opponents
+    minimax(board, depth, alpha, beta, isMaximizing, player, opponents, moveCounters, maxDepth) {
         const winner = this.checkWinner(board, player);
-        const loser = this.checkWinner(board, opponent);
+        const opponentWinners = opponents.map(opp => this.checkWinner(board, opp)).filter(w => w !== null);
 
         if (winner === player) return 1000 - depth;
-        if (loser === opponent) return -1000 + depth;
+        if (opponentWinners.length > 0) return -1000 + depth;
         if (this.isBoardFull(board)) return 0;
 
-        if (depth >= 4) {
-            return this.evaluateBoard(board, player, opponent);
+        if (depth >= maxDepth) {
+            return this.evaluateBoardMultiplayer(board, player, opponents);
         }
 
         if (isMaximizing) {
             let maxEval = -Infinity;
-            const moves = this.getPossibleMoves(board, player, opponent, moveCounters, true);
+            const moves = this.getPossibleMovesMultiplayer(board, player, opponents, moveCounters, true);
 
             for (const move of moves) {
                 const newBoard = [...board];
                 const newCounters = JSON.parse(JSON.stringify(moveCounters));
                 this.applyMove(newBoard, move, player, newCounters);
-                const evalScore = this.minimax(newBoard, depth + 1, alpha, beta, false, player, opponent, newCounters);
+                const evalScore = this.minimax(newBoard, depth + 1, alpha, beta, false, player, opponents, newCounters, maxDepth);
                 maxEval = Math.max(maxEval, evalScore);
                 alpha = Math.max(alpha, evalScore);
                 if (beta <= alpha) break;
@@ -947,19 +995,152 @@ class TicTacToe {
             return maxEval;
         } else {
             let minEval = Infinity;
-            const moves = this.getPossibleMoves(board, opponent, player, moveCounters, false);
+            // For minimizing, evaluate against the most threatening opponent
+            // Find the opponent with the best position
+            let bestOpponent = opponents[0];
+            let bestOpponentScore = -Infinity;
+
+            for (const opponent of opponents) {
+                const score = this.evaluateBoardMultiplayer(board, opponent, [player, ...opponents.filter(o => o !== opponent)]);
+                if (score > bestOpponentScore) {
+                    bestOpponentScore = score;
+                    bestOpponent = opponent;
+                }
+            }
+
+            // Evaluate moves for the most threatening opponent
+            const moves = this.getPossibleMovesMultiplayer(board, bestOpponent, [player, ...opponents.filter(o => o !== bestOpponent)], moveCounters, false);
 
             for (const move of moves) {
                 const newBoard = [...board];
                 const newCounters = JSON.parse(JSON.stringify(moveCounters));
-                this.applyMove(newBoard, move, opponent, newCounters);
-                const evalScore = this.minimax(newBoard, depth + 1, alpha, beta, true, player, opponent, newCounters);
+                this.applyMove(newBoard, move, bestOpponent, newCounters);
+                const evalScore = this.minimax(newBoard, depth + 1, alpha, beta, true, player, opponents, newCounters, maxDepth);
                 minEval = Math.min(minEval, evalScore);
                 beta = Math.min(beta, evalScore);
                 if (beta <= alpha) break;
             }
             return minEval;
         }
+    }
+
+    evaluateBoardMultiplayer(board, player, opponents) {
+        let score = 0;
+        const size = this.boardSize;
+        const winLength = this.winLength;
+
+        const evaluateLine = (cells) => {
+            let playerCount = 0;
+            let opponentCounts = {};
+            opponents.forEach(opp => opponentCounts[opp] = 0);
+
+            for (const cell of cells) {
+                if (cell === player) playerCount++;
+                else if (opponents.includes(cell)) opponentCounts[cell]++;
+            }
+
+            // Positive score for player's line
+            if (playerCount > 0 && opponents.every(opp => opponentCounts[opp] === 0)) {
+                score += Math.pow(10, playerCount);
+            }
+
+            // Negative score for opponent lines
+            opponents.forEach(opp => {
+                if (opponentCounts[opp] > 0 && playerCount === 0) {
+                    score -= Math.pow(10, opponentCounts[opp]);
+                }
+            });
+        };
+
+        // Check all lines (rows, columns, diagonals)
+        for (let row = 0; row < size; row++) {
+            for (let col = 0; col <= size - winLength; col++) {
+                const cells = [];
+                for (let i = 0; i < winLength; i++) {
+                    cells.push(board[row * size + col + i]);
+                }
+                evaluateLine(cells);
+            }
+        }
+
+        for (let col = 0; col < size; col++) {
+            for (let row = 0; row <= size - winLength; row++) {
+                const cells = [];
+                for (let i = 0; i < winLength; i++) {
+                    cells.push(board[(row + i) * size + col]);
+                }
+                evaluateLine(cells);
+            }
+        }
+
+        for (let row = 0; row <= size - winLength; row++) {
+            for (let col = 0; col <= size - winLength; col++) {
+                const cells = [];
+                for (let i = 0; i < winLength; i++) {
+                    cells.push(board[(row + i) * size + (col + i)]);
+                }
+                evaluateLine(cells);
+            }
+        }
+
+        for (let row = 0; row <= size - winLength; row++) {
+            for (let col = winLength - 1; col < size; col++) {
+                const cells = [];
+                for (let i = 0; i < winLength; i++) {
+                    cells.push(board[(row + i) * size + (col - i)]);
+                }
+                evaluateLine(cells);
+            }
+        }
+
+        return score;
+    }
+
+    getPossibleMovesMultiplayer(board, player, opponents, moveCounters, isMaximizing) {
+        const moves = [];
+        const size = this.boardSize;
+        const counters = moveCounters[player];
+
+        // Mark moves
+        for (let i = 0; i < board.length; i++) {
+            if (board[i] === '') {
+                moves.push({ action: 'mark', index: i });
+            }
+        }
+
+        // Delete moves (can delete any opponent's cell)
+        if (counters.movesSinceDelete >= this.deleteCooldown) {
+            for (let i = 0; i < board.length; i++) {
+                if (opponents.includes(board[i])) {
+                    moves.push({ action: 'delete', index: i });
+                }
+            }
+        }
+
+        // Move moves
+        if (counters.movesSinceMove >= this.moveCooldown) {
+            for (let i = 0; i < board.length; i++) {
+                if (board[i] === '') {
+                    const row = Math.floor(i / size);
+                    const col = i % size;
+                    const directions = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+
+                    for (const [dr, dc] of directions) {
+                        const newRow = row + dr;
+                        const newCol = col + dc;
+                        if (newRow >= 0 && newRow < size && newCol >= 0 && newCol < size) {
+                            const adjIndex = newRow * size + newCol;
+                            if (board[adjIndex] === player) {
+                                moves.push({ action: 'move', index: i, sourceIndex: adjIndex });
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return moves;
     }
 
     checkWinner(board, player) {
@@ -1014,111 +1195,13 @@ class TicTacToe {
     }
 
     evaluateBoard(board, player, opponent) {
-        let score = 0;
-        const size = this.boardSize;
-        const winLength = this.winLength;
-
-        const evaluateLine = (cells) => {
-            let playerCount = 0;
-            let opponentCount = 0;
-
-            for (const cell of cells) {
-                if (cell === player) playerCount++;
-                else if (cell === opponent) opponentCount++;
-            }
-
-            if (playerCount > 0 && opponentCount === 0) {
-                score += Math.pow(10, playerCount);
-            } else if (opponentCount > 0 && playerCount === 0) {
-                score -= Math.pow(10, opponentCount);
-            }
-        };
-
-        for (let row = 0; row < size; row++) {
-            for (let col = 0; col <= size - winLength; col++) {
-                const cells = [];
-                for (let i = 0; i < winLength; i++) {
-                    cells.push(board[row * size + col + i]);
-                }
-                evaluateLine(cells);
-            }
-        }
-
-        for (let col = 0; col < size; col++) {
-            for (let row = 0; row <= size - winLength; row++) {
-                const cells = [];
-                for (let i = 0; i < winLength; i++) {
-                    cells.push(board[(row + i) * size + col]);
-                }
-                evaluateLine(cells);
-            }
-        }
-
-        for (let row = 0; row <= size - winLength; row++) {
-            for (let col = 0; col <= size - winLength; col++) {
-                const cells = [];
-                for (let i = 0; i < winLength; i++) {
-                    cells.push(board[(row + i) * size + (col + i)]);
-                }
-                evaluateLine(cells);
-            }
-        }
-
-        for (let row = 0; row <= size - winLength; row++) {
-            for (let col = winLength - 1; col < size; col++) {
-                const cells = [];
-                for (let i = 0; i < winLength; i++) {
-                    cells.push(board[(row + i) * size + (col - i)]);
-                }
-                evaluateLine(cells);
-            }
-        }
-
-        return score;
+        // Legacy method for backward compatibility
+        return this.evaluateBoardMultiplayer(board, player, [opponent]);
     }
 
     getPossibleMoves(board, player, opponent, moveCounters, isMaximizing) {
-        const moves = [];
-        const size = this.boardSize;
-        const counters = moveCounters[player];
-
-        for (let i = 0; i < board.length; i++) {
-            if (board[i] === '') {
-                moves.push({ action: 'mark', index: i });
-            }
-        }
-
-        if (counters.movesSinceDelete >= this.deleteCooldown) {
-            for (let i = 0; i < board.length; i++) {
-                if (board[i] === opponent) {
-                    moves.push({ action: 'delete', index: i });
-                }
-            }
-        }
-
-        if (counters.movesSinceMove >= this.moveCooldown) {
-            for (let i = 0; i < board.length; i++) {
-                if (board[i] === '') {
-                    const row = Math.floor(i / size);
-                    const col = i % size;
-                    const directions = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
-
-                    for (const [dr, dc] of directions) {
-                        const newRow = row + dr;
-                        const newCol = col + dc;
-                        if (newRow >= 0 && newRow < size && newCol >= 0 && newCol < size) {
-                            const adjIndex = newRow * size + newCol;
-                            if (board[adjIndex] === player) {
-                                moves.push({ action: 'move', index: i, sourceIndex: adjIndex });
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return moves;
+        // Legacy method for backward compatibility
+        return this.getPossibleMovesMultiplayer(board, player, [opponent], moveCounters, isMaximizing);
     }
 
     applyMove(board, move, player, moveCounters) {
@@ -1151,7 +1234,10 @@ class TicTacToe {
         setTimeout(() => {
             const board = [...this.board];
             const moveCounters = JSON.parse(JSON.stringify(this.moveCounters));
-            const moves = this.getPossibleMoves(board, this.computerPlayer, this.humanPlayer, moveCounters, true);
+
+            // Get all opponents (human players and other computer players)
+            const opponents = this.players.filter(symbol => symbol !== this.currentPlayer);
+            const moves = this.getPossibleMovesMultiplayer(board, this.currentPlayer, opponents, moveCounters, true);
 
             if (moves.length === 0) {
                 if (thinkingIndicator) thinkingIndicator.style.display = 'none';
@@ -1162,13 +1248,18 @@ class TicTacToe {
             let bestMove = null;
             let bestScore = -Infinity;
 
+            // Get difficulty level for current computer player
+            const playerIndex = this.players.indexOf(this.currentPlayer);
+            const difficulty = this.difficultyLevels[playerIndex] || DEFAULT_DIFFICULTY;
+            const maxDepth = DIFFICULTY_LEVELS[difficulty].depth;
+
             for (const move of moves) {
                 const newBoard = [...board];
                 const newCounters = JSON.parse(JSON.stringify(moveCounters));
-                this.applyMove(newBoard, move, this.computerPlayer, newCounters);
+                this.applyMove(newBoard, move, this.currentPlayer, newCounters);
 
                 const score = this.minimax(newBoard, 0, -Infinity, Infinity, false,
-                    this.computerPlayer, this.humanPlayer, newCounters);
+                    this.currentPlayer, opponents, newCounters, maxDepth);
 
                 if (score > bestScore) {
                     bestScore = score;
@@ -1220,6 +1311,12 @@ class TicTacToe {
                 this.updateDisplay();
                 this.setAction('mark');
                 this.updateActionButtons();
+
+                // If next player is also a computer, trigger their move
+                if (this.isComputerPlayer(this.currentPlayer) && this.gameActive) {
+                    this.isComputerTurn = true;
+                    setTimeout(() => this.makeComputerMove(), 300);
+                }
             }
         }
     }
@@ -1254,7 +1351,7 @@ class TicTacToe {
         this.updateDisplay();
         this.updateActionButtons();
 
-        if (this.vsComputer && this.currentPlayer === this.computerPlayer && this.gameActive) {
+        if (this.isComputerPlayer(this.currentPlayer) && this.gameActive) {
             this.isComputerTurn = true;
             this.makeComputerMove();
         }
@@ -1299,8 +1396,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Local game elements
     const modeBackBtn = document.getElementById('mode-back-btn');
     const playersBackBtn = document.getElementById('players-back-btn');
+    const configBackBtn = document.getElementById('config-back-btn');
     const modeOptionButtons = document.querySelectorAll('.mode-option-btn');
     const playerOptionButtons = document.querySelectorAll('.player-option-btn');
+    const playerConfigModal = document.getElementById('player-config-modal');
+    const playerConfigList = document.getElementById('player-config-list');
+    const btnStartConfigGame = document.getElementById('btn-start-config-game');
 
     // Helper functions
     function hideAllModals() {
@@ -1309,6 +1410,7 @@ document.addEventListener('DOMContentLoaded', () => {
         waitingRoomModal.style.display = 'none';
         gameModeModal.style.display = 'none';
         playerSelectionModal.style.display = 'none';
+        playerConfigModal.style.display = 'none';
     }
 
     function showError(message) {
@@ -1413,14 +1515,36 @@ document.addEventListener('DOMContentLoaded', () => {
         gameModeModal.style.display = 'flex';
     });
 
+    const computerDifficultySection = document.getElementById('computer-difficulty-section');
+    const vsComputerDifficultySelect = document.getElementById('vs-computer-difficulty');
+
+    // Start vs computer game button
+    const vsComputerStartBtn = document.createElement('button');
+    vsComputerStartBtn.className = 'menu-btn primary';
+    vsComputerStartBtn.textContent = 'Start Game';
+    vsComputerStartBtn.style.marginTop = '20px';
+    vsComputerStartBtn.style.display = 'none';
+    vsComputerStartBtn.addEventListener('click', () => {
+        const difficulty = vsComputerDifficultySelect.value;
+        hideAllModals();
+        gameContainer.style.display = 'block';
+        game = new TicTacToe(2, true, null, [null, difficulty]);
+    });
+
+    // Add start button to modal
+    const gameModeModalContent = document.getElementById('game-mode-modal').querySelector('.modal-content');
+    gameModeModalContent.appendChild(vsComputerStartBtn);
+
     modeOptionButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             const mode = e.target.getAttribute('data-mode');
             if (mode === 'computer') {
-                hideAllModals();
-                gameContainer.style.display = 'block';
-                game = new TicTacToe(2, true);
+                // Show difficulty selector and start button for vs computer mode
+                computerDifficultySection.style.display = 'block';
+                vsComputerStartBtn.style.display = 'block';
             } else {
+                computerDifficultySection.style.display = 'none';
+                vsComputerStartBtn.style.display = 'none';
                 hideAllModals();
                 playerSelectionModal.style.display = 'flex';
             }
@@ -1430,11 +1554,104 @@ document.addEventListener('DOMContentLoaded', () => {
     playerOptionButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             const numPlayers = parseInt(e.target.getAttribute('data-players'));
-            hideAllModals();
-            gameContainer.style.display = 'block';
-            game = new TicTacToe(numPlayers, false);
+            showPlayerConfigModal(numPlayers);
         });
     });
+
+    configBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        playerSelectionModal.style.display = 'flex';
+    });
+
+    btnStartConfigGame.addEventListener('click', () => {
+        const playerConfig = [];
+        const difficultyLevels = [];
+        const configItems = playerConfigList.querySelectorAll('.player-config-item');
+        configItems.forEach(item => {
+            const isHuman = item.querySelector('.player-type-toggle').classList.contains('human');
+            playerConfig.push(isHuman);
+
+            if (!isHuman) {
+                const difficultySelect = item.querySelector('.difficulty-select');
+                const difficulty = difficultySelect ? difficultySelect.value : DEFAULT_DIFFICULTY;
+                difficultyLevels.push(difficulty);
+            } else {
+                difficultyLevels.push(null);
+            }
+        });
+
+        const numPlayers = playerConfig.length;
+        hideAllModals();
+        gameContainer.style.display = 'block';
+        game = new TicTacToe(numPlayers, false, playerConfig, difficultyLevels);
+    });
+
+    function showPlayerConfigModal(numPlayers) {
+        hideAllModals();
+        playerConfigModal.style.display = 'flex';
+        playerConfigList.innerHTML = '';
+
+        for (let i = 0; i < numPlayers; i++) {
+            const symbol = PLAYER_SYMBOLS[i];
+            const config = PLAYER_CONFIGS[symbol];
+            const configItem = document.createElement('div');
+            configItem.className = 'player-config-item';
+
+            // Default: first player is human, rest can be configured
+            const isHuman = i === 0;
+
+            // Create difficulty selector HTML (only shown for computer players)
+            const difficultyOptions = Object.keys(DIFFICULTY_LEVELS).map(key =>
+                `<option value="${key}">${DIFFICULTY_LEVELS[key].name}</option>`
+            ).join('');
+
+            configItem.innerHTML = `
+                <div class="player-config-symbol" style="color: ${config.color}">
+                    ${config.symbol}
+                </div>
+                <div class="player-config-info">
+                    <span class="player-config-name">${config.name}</span>
+                </div>
+                <div class="player-config-controls">
+                    <div class="player-type-toggle ${isHuman ? 'human' : 'computer'}" data-index="${i}">
+                        <span class="toggle-label">${isHuman ? 'Human' : 'Computer'}</span>
+                    </div>
+                    <select class="difficulty-select" ${isHuman ? 'style="display: none;"' : ''}>
+                        ${difficultyOptions}
+                    </select>
+                </div>
+            `;
+
+            const toggle = configItem.querySelector('.player-type-toggle');
+            const difficultySelect = configItem.querySelector('.difficulty-select');
+
+            // Set default difficulty
+            if (!isHuman) {
+                difficultySelect.value = DEFAULT_DIFFICULTY;
+            }
+
+            toggle.addEventListener('click', () => {
+                const wasHuman = toggle.classList.contains('human');
+                toggle.classList.toggle('human');
+                toggle.classList.toggle('computer');
+                const isNowHuman = toggle.classList.contains('human');
+                toggle.querySelector('.toggle-label').textContent =
+                    isNowHuman ? 'Human' : 'Computer';
+
+                // Show/hide difficulty selector
+                if (isNowHuman) {
+                    difficultySelect.style.display = 'none';
+                } else {
+                    difficultySelect.style.display = 'block';
+                    if (wasHuman) {
+                        difficultySelect.value = DEFAULT_DIFFICULTY;
+                    }
+                }
+            });
+
+            playerConfigList.appendChild(configItem);
+        }
+    }
 
     // Socket event listeners
     function setupSocketListeners() {

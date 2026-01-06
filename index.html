@@ -105,6 +105,15 @@
                 <button class="mode-option-btn" data-mode="multi">Multi-Player (Local)</button>
                 <button class="mode-option-btn" data-mode="computer">Vs Computer</button>
             </div>
+            <div class="computer-difficulty-section" id="computer-difficulty-section" style="display: none; margin-top: 25px;">
+                <label for="vs-computer-difficulty" style="display: block; margin-bottom: 10px; font-weight: 600; color: #1a1a2e;">Computer Difficulty:</label>
+                <select id="vs-computer-difficulty" class="difficulty-select" style="width: 100%; max-width: 300px; margin: 0 auto;">
+                    <option value="easy">Easy - Quick moves, basic strategy</option>
+                    <option value="medium" selected>Medium - Balanced play</option>
+                    <option value="hard">Hard - Strong strategy</option>
+                    <option value="expert">Expert - Very challenging</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -119,6 +128,19 @@
                 <button class="player-option-btn" data-players="4">4 Players</button>
                 <button class="player-option-btn" data-players="5">5 Players</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Player Configuration Modal (for mixed human/computer) -->
+    <div class="modal-overlay" id="player-config-modal" style="display: none;">
+        <div class="modal-content">
+            <button class="back-btn" id="config-back-btn">← Back</button>
+            <h2>Configure Players</h2>
+            <p class="config-subtitle">Choose which players are Human or Computer</p>
+            <div class="player-config-list" id="player-config-list">
+                <!-- Player config items will be added here dynamically -->
+            </div>
+            <button class="menu-btn primary" id="btn-start-config-game" style="margin-top: 20px;">Start Game</button>
         </div>
     </div>
 
