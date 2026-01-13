@@ -42,9 +42,84 @@
                             <span class="versus-subtitle">Multiplayer Online</span>
                         </button>
                     </div>
+                    <button class="menu-btn bonus-btn" id="btn-bonus-modes" style="margin-top: 20px;">
+                        <span class="btn-icon">🎁</span>
+                        Bonus Modes
+                    </button>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Bonus Modes Selection Modal -->
+    <div class="modal-overlay" id="bonus-modes-modal" style="display: none;">
+        <div class="modal-content">
+            <button class="back-btn" id="bonus-modes-back-btn">← Back</button>
+            <h2>Bonus Modes</h2>
+            <p class="config-subtitle">Special game modes</p>
+            <div class="bonus-modes-grid">
+                <button class="bonus-mode-btn" id="btn-maze-mode">
+                    <span class="bonus-mode-icon">🧩</span>
+                    <span class="bonus-mode-label">Maze Mode</span>
+                    <span class="bonus-mode-subtitle">Guide X to reach O</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Maze Mode Difficulty Selection Modal -->
+    <div class="modal-overlay" id="maze-difficulty-modal" style="display: none;">
+        <div class="modal-content">
+            <button class="back-btn" id="maze-difficulty-back-btn">← Back</button>
+            <h2>Maze Mode</h2>
+            <p class="config-subtitle">Select difficulty level</p>
+            <div class="difficulty-options">
+                <button class="difficulty-option-btn" data-difficulty="1">
+                    <span class="difficulty-level">Level 1</span>
+                    <span class="difficulty-name">Very Easy</span>
+                    <span class="difficulty-size">5x5</span>
+                </button>
+                <button class="difficulty-option-btn" data-difficulty="2">
+                    <span class="difficulty-level">Level 2</span>
+                    <span class="difficulty-name">Easy</span>
+                    <span class="difficulty-size">7x7</span>
+                </button>
+                <button class="difficulty-option-btn" data-difficulty="3">
+                    <span class="difficulty-level">Level 3</span>
+                    <span class="difficulty-name">Medium</span>
+                    <span class="difficulty-size">10x10</span>
+                </button>
+                <button class="difficulty-option-btn" data-difficulty="4">
+                    <span class="difficulty-level">Level 4</span>
+                    <span class="difficulty-name">Hard</span>
+                    <span class="difficulty-size">15x15</span>
+                </button>
+                <button class="difficulty-option-btn" data-difficulty="5">
+                    <span class="difficulty-level">Level 5</span>
+                    <span class="difficulty-name">Very Hard</span>
+                    <span class="difficulty-size">20x20</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Maze Game Container -->
+    <div class="container" id="maze-container" style="display: none;">
+        <div class="game-header">
+            <h1>Maze Mode</h1>
+            <div class="maze-info">
+                <span id="maze-difficulty-display">Difficulty: Level 1</span>
+                <span id="maze-moves">Moves: 0</span>
+            </div>
+        </div>
+        <div class="maze-board" id="maze-board">
+            <!-- Maze cells will be generated here -->
+        </div>
+        <div class="maze-controls">
+            <button class="reset-btn" id="maze-reset-btn">Reset Maze</button>
+            <button class="reset-btn secondary-btn" id="maze-back-btn">Back to Menu</button>
+        </div>
+        <div class="maze-status" id="maze-status"></div>
     </div>
 
     <!-- Game Mode Selection Modal -->

@@ -1766,6 +1766,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnPvpLocal = document.getElementById('btn-pvp-local');
     const btnPvc = document.getElementById('btn-pvc');
     const btnMultiplayer = document.getElementById('btn-multiplayer');
+    const btnBonusModes = document.getElementById('btn-bonus-modes');
+    
+    // Bonus modes elements
+    const bonusModesModal = document.getElementById('bonus-modes-modal');
+    const bonusModesBackBtn = document.getElementById('bonus-modes-back-btn');
+    const btnMazeMode = document.getElementById('btn-maze-mode');
+    
+    // Maze mode elements
+    const mazeDifficultyModal = document.getElementById('maze-difficulty-modal');
+    const mazeDifficultyBackBtn = document.getElementById('maze-difficulty-back-btn');
+    const difficultyOptionButtons = document.querySelectorAll('.difficulty-option-btn');
+    const mazeContainer = document.getElementById('maze-container');
+    const mazeBoard = document.getElementById('maze-board');
+    const mazeResetBtn = document.getElementById('maze-reset-btn');
+    const mazeBackBtn = document.getElementById('maze-back-btn');
+    const mazeStatus = document.getElementById('maze-status');
+    const mazeMovesDisplay = document.getElementById('maze-moves');
+    const mazeDifficultyDisplay = document.getElementById('maze-difficulty-display');
 
     // Lobby elements
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
@@ -1817,6 +1835,8 @@ document.addEventListener('DOMContentLoaded', () => {
         playerSelectionModal.style.display = 'none';
         playerConfigModal.style.display = 'none';
         variationSelectionModal.style.display = 'none';
+        bonusModesModal.style.display = 'none';
+        mazeDifficultyModal.style.display = 'none';
     }
 
     function updateVariationDisplay() {
@@ -2310,4 +2330,313 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize variation display
     updateVariationDisplay();
+
+    // Bonus modes handlers
+    btnBonusModes.addEventListener('click', () => {
+        hideAllModals();
+        bonusModesModal.style.display = 'flex';
+    });
+
+    bonusModesBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    btnMazeMode.addEventListener('click', () => {
+        hideAllModals();
+        mazeDifficultyModal.style.display = 'flex';
+    });
+
+    mazeDifficultyBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        bonusModesModal.style.display = 'flex';
+    });
+
+    // Maze game variables
+    let currentMaze = null;
+    let playerPosition = null;
+    let targetPosition = null;
+    let mazeMoves = 0;
+    let currentDifficulty = 1;
+    let mazeSize = 5;
+
+    // Difficulty configurations
+    const MAZE_DIFFICULTIES = {
+        1: { size: 5, name: 'Very Easy' },
+        2: { size: 7, name: 'Easy' },
+        3: { size: 10, name: 'Medium' },
+        4: { size: 15, name: 'Hard' },
+        5: { size: 20, name: 'Very Hard' }
+    };
+
+    difficultyOptionButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const difficulty = parseInt(e.target.closest('.difficulty-option-btn').getAttribute('data-difficulty'));
+            currentDifficulty = difficulty;
+            mazeSize = MAZE_DIFFICULTIES[difficulty].size;
+            startMazeGame(difficulty);
+        });
+    });
+
+    function startMazeGame(difficulty) {
+        hideAllModals();
+        mazeContainer.style.display = 'block';
+        gameContainer.style.display = 'none';
+        
+        currentDifficulty = difficulty;
+        mazeSize = MAZE_DIFFICULTIES[difficulty].size;
+        mazeMoves = 0;
+        mazeStatus.textContent = '';
+        mazeStatus.classList.remove('success');
+        mazeDifficultyDisplay.textContent = `Difficulty: ${MAZE_DIFFICULTIES[difficulty].name}`;
+        updateMovesDisplay();
+        
+        generateMaze();
+        renderMaze();
+    }
+
+    function generateMaze() {
+        // Initialize maze with walls
+        currentMaze = Array(mazeSize).fill(null).map(() => Array(mazeSize).fill(1));
+        
+        // Use recursive backtracking algorithm to generate maze
+        const stack = [];
+        const visited = Array(mazeSize).fill(null).map(() => Array(mazeSize).fill(false));
+        
+        // Start from top-left
+        let current = { row: 0, col: 0 };
+        currentMaze[0][0] = 0; // Path
+        visited[0][0] = true;
+        stack.push(current);
+        
+        const directions = [
+            { row: -1, col: 0 }, // Up
+            { row: 1, col: 0 },  // Down
+            { row: 0, col: -1 },  // Left
+            { row: 0, col: 1 }    // Right
+        ];
+        
+        while (stack.length > 0) {
+            const neighbors = [];
+            
+            for (const dir of directions) {
+                const newRow = current.row + dir.row * 2;
+                const newCol = current.col + dir.col * 2;
+                
+                if (newRow >= 0 && newRow < mazeSize && 
+                    newCol >= 0 && newCol < mazeSize && 
+                    !visited[newRow][newCol]) {
+                    neighbors.push({
+                        row: newRow,
+                        col: newCol,
+                        wallRow: current.row + dir.row,
+                        wallCol: current.col + dir.col
+                    });
+                }
+            }
+            
+            if (neighbors.length > 0) {
+                const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+                currentMaze[next.wallRow][next.wallCol] = 0; // Remove wall
+                currentMaze[next.row][next.col] = 0; // Path
+                visited[next.row][next.col] = true;
+                stack.push(current);
+                current = { row: next.row, col: next.col };
+            } else {
+                current = stack.pop();
+            }
+        }
+        
+        // Ensure bottom-right is a path
+        currentMaze[mazeSize - 1][mazeSize - 1] = 0;
+        if (mazeSize > 1) {
+            currentMaze[mazeSize - 2][mazeSize - 1] = 0;
+            currentMaze[mazeSize - 1][mazeSize - 2] = 0;
+        }
+        
+        // Set player and target positions
+        playerPosition = { row: 0, col: 0 };
+        targetPosition = { row: mazeSize - 1, col: mazeSize - 1 };
+        
+        // Add some random walls for difficulty (more walls = harder)
+        // But ensure there's still a path from start to finish
+        const wallDensity = [0.05, 0.1, 0.15, 0.2, 0.25][difficulty - 1];
+        const totalCells = mazeSize * mazeSize;
+        const wallsToAdd = Math.floor(totalCells * wallDensity);
+        
+        // Keep track of which cells are critical for pathfinding
+        const criticalCells = new Set();
+        criticalCells.add(`${0}-${0}`);
+        criticalCells.add(`${mazeSize - 1}-${mazeSize - 1}`);
+        
+        for (let i = 0; i < wallsToAdd; i++) {
+            const row = Math.floor(Math.random() * mazeSize);
+            const col = Math.floor(Math.random() * mazeSize);
+            const cellKey = `${row}-${col}`;
+            
+            // Don't block start, end, or critical path cells
+            if (!criticalCells.has(cellKey)) {
+                // Temporarily add wall
+                const original = currentMaze[row][col];
+                currentMaze[row][col] = 1;
+                
+                // Check if path still exists
+                if (hasPath(0, 0, mazeSize - 1, mazeSize - 1)) {
+                    // Path exists, keep the wall
+                } else {
+                    // Path broken, revert
+                    currentMaze[row][col] = original;
+                }
+            }
+        }
+    }
+
+    function hasPath(startRow, startCol, endRow, endCol) {
+        const visited = Array(mazeSize).fill(null).map(() => Array(mazeSize).fill(false));
+        const queue = [{ row: startRow, col: startCol }];
+        visited[startRow][startCol] = true;
+        
+        const directions = [
+            { row: -1, col: 0 }, // Up
+            { row: 1, col: 0 },  // Down
+            { row: 0, col: -1 }, // Left
+            { row: 0, col: 1 }   // Right
+        ];
+        
+        while (queue.length > 0) {
+            const current = queue.shift();
+            
+            if (current.row === endRow && current.col === endCol) {
+                return true;
+            }
+            
+            for (const dir of directions) {
+                const newRow = current.row + dir.row;
+                const newCol = current.col + dir.col;
+                
+                if (newRow >= 0 && newRow < mazeSize && 
+                    newCol >= 0 && newCol < mazeSize && 
+                    !visited[newRow][newCol] && 
+                    currentMaze[newRow][newCol] === 0) {
+                    visited[newRow][newCol] = true;
+                    queue.push({ row: newRow, col: newCol });
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    function renderMaze() {
+        mazeBoard.innerHTML = '';
+        mazeBoard.style.gridTemplateColumns = `repeat(${mazeSize}, 1fr)`;
+        
+        // Calculate cell size based on maze size
+        const maxSize = Math.min(600, window.innerWidth - 100);
+        const cellSize = Math.floor(maxSize / mazeSize);
+        mazeBoard.style.gridTemplateColumns = `repeat(${mazeSize}, ${cellSize}px)`;
+        
+        for (let row = 0; row < mazeSize; row++) {
+            for (let col = 0; col < mazeSize; col++) {
+                const cell = document.createElement('div');
+                cell.className = 'maze-cell';
+                cell.setAttribute('data-row', row);
+                cell.setAttribute('data-col', col);
+                
+                if (currentMaze[row][col] === 1) {
+                    cell.classList.add('wall');
+                } else {
+                    cell.classList.add('path');
+                    
+                    if (row === playerPosition.row && col === playerPosition.col) {
+                        cell.classList.add('player');
+                        cell.textContent = '✕';
+                    } else if (row === targetPosition.row && col === targetPosition.col) {
+                        cell.classList.add('target');
+                        cell.textContent = '○';
+                    }
+                    
+                    cell.addEventListener('click', () => handleMazeCellClick(row, col));
+                }
+                
+                mazeBoard.appendChild(cell);
+            }
+        }
+    }
+
+    function handleMazeCellClick(row, col) {
+        if (currentMaze[row][col] === 1) return; // Can't move to wall
+        
+        // Check if cell is adjacent to player
+        const rowDiff = Math.abs(row - playerPosition.row);
+        const colDiff = Math.abs(col - playerPosition.col);
+        
+        if ((rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)) {
+            playerPosition = { row, col };
+            mazeMoves++;
+            updateMovesDisplay();
+            renderMaze();
+            
+            // Check win condition
+            if (row === targetPosition.row && col === targetPosition.col) {
+                mazeStatus.textContent = `🎉 Congratulations! You reached the target in ${mazeMoves} moves!`;
+                mazeStatus.classList.add('success');
+            }
+        }
+    }
+
+    function updateMovesDisplay() {
+        mazeMovesDisplay.textContent = `Moves: ${mazeMoves}`;
+    }
+
+    mazeResetBtn.addEventListener('click', () => {
+        startMazeGame(currentDifficulty);
+    });
+
+    mazeBackBtn.addEventListener('click', () => {
+        mazeContainer.style.display = 'none';
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    // Keyboard controls for maze
+    document.addEventListener('keydown', (e) => {
+        if (mazeContainer.style.display === 'none' || !currentMaze) return;
+        
+        let newRow = playerPosition.row;
+        let newCol = playerPosition.col;
+        
+        switch(e.key) {
+            case 'ArrowUp':
+            case 'w':
+            case 'W':
+                newRow--;
+                break;
+            case 'ArrowDown':
+            case 's':
+            case 'S':
+                newRow++;
+                break;
+            case 'ArrowLeft':
+            case 'a':
+            case 'A':
+                newCol--;
+                break;
+            case 'ArrowRight':
+            case 'd':
+            case 'D':
+                newCol++;
+                break;
+            default:
+                return;
+        }
+        
+        e.preventDefault();
+        
+        if (newRow >= 0 && newRow < mazeSize && 
+            newCol >= 0 && newCol < mazeSize && 
+            currentMaze[newRow][newCol] === 0) {
+            handleMazeCellClick(newRow, newCol);
+        }
+    });
 });
