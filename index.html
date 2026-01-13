@@ -47,6 +47,27 @@
         </div>
     </div>
 
+    <!-- Game Mode Selection Modal -->
+    <div class="modal-overlay" id="game-mode-selection-modal" style="display: none;">
+        <div class="modal-content">
+            <button class="back-btn" id="game-mode-selection-back-btn">← Back</button>
+            <h2>Select Game Mode</h2>
+            <p class="config-subtitle">Choose your preferred game type</p>
+            <div class="game-mode-options">
+                <button class="game-mode-option-btn" data-game-mode="classic">
+                    <div class="game-mode-icon">⭕</div>
+                    <div class="game-mode-title">Normal Tic Tac Toe</div>
+                    <div class="game-mode-description">Classic 3x3 board, 2 players</div>
+                </button>
+                <button class="game-mode-option-btn" data-game-mode="wild">
+                    <div class="game-mode-icon">🎲</div>
+                    <div class="game-mode-title">Wild Addition</div>
+                    <div class="game-mode-description">Larger boards with special moves</div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Game Variation Selection Modal -->
     <div class="modal-overlay" id="variation-selection-modal" style="display: none;">
         <div class="modal-content">

@@ -662,6 +662,62 @@ h1 {
     transform: translateY(0);
 }
 
+/* Game Mode Options */
+.game-mode-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.game-mode-option-btn {
+    padding: 25px 30px;
+    font-size: 1.1em;
+    font-weight: 600;
+    background: white;
+    color: #333;
+    border: 2px solid #e0e0e0;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    font-family: 'Outfit', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.game-mode-option-btn:hover {
+    border-color: #4ecdc4;
+    background: #f8f9fc;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(78, 205, 196, 0.2);
+}
+
+.game-mode-option-btn:active {
+    transform: translateY(0);
+}
+
+.game-mode-icon {
+    font-size: 3em;
+    line-height: 1;
+}
+
+.game-mode-title {
+    font-size: 1.3em;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-top: 5px;
+}
+
+.game-mode-description {
+    font-size: 0.9em;
+    color: #666;
+    font-weight: 400;
+    text-align: center;
+}
+
 /* Variation Options */
 .variation-options {
     display: flex;
@@ -1384,5 +1440,21 @@ h1 {
     
     .versus-subtitle {
         font-size: 0.8em;
+    }
+    
+    .game-mode-option-btn {
+        padding: 20px;
+    }
+    
+    .game-mode-icon {
+        font-size: 2.5em;
+    }
+    
+    .game-mode-title {
+        font-size: 1.2em;
+    }
+    
+    .game-mode-description {
+        font-size: 0.85em;
     }
 }

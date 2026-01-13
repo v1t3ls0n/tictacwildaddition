@@ -25,12 +25,22 @@ const rooms = new Map();
 const PLAYER_SYMBOLS = ['X', 'O', 'D', 'T', 'S'];
 
 class GameRoom {
-    constructor(roomCode, hostId, numPlayers, hostName, gameVariation = 'normal') {
+    constructor(roomCode, hostId, numPlayers, hostName, gameVariation = 'normal', gameMode = 'wild') {
         this.roomCode = roomCode;
         this.hostId = hostId;
         this.numPlayers = numPlayers;
-        this.boardSize = 4 + numPlayers;
-        this.winLength = 4;
+        this.gameMode = gameMode; // 'classic' or 'wild'
+        
+        // Set board size and win length based on game mode
+        if (gameMode === 'classic') {
+            this.boardSize = 3;
+            this.winLength = 3;
+            this.numPlayers = 2; // Classic mode only supports 2 players
+        } else {
+            this.boardSize = 4 + numPlayers;
+            this.winLength = 4;
+        }
+        
         this.players = new Map(); // socketId -> { name, symbol, index }
         this.playerOrder = []; // Array of socket IDs in play order
         this.board = Array(this.boardSize * this.boardSize).fill('');
@@ -41,8 +51,14 @@ class GameRoom {
         this.gameVariation = gameVariation; // 'normal', 'with-remove', 'with-remove-move'
 
         // Variation-specific settings
-        this.allowDelete = gameVariation === 'with-remove' || gameVariation === 'with-remove-move';
-        this.allowMove = gameVariation === 'with-remove-move';
+        // Classic mode doesn't allow delete/move
+        if (gameMode === 'classic') {
+            this.allowDelete = false;
+            this.allowMove = false;
+        } else {
+            this.allowDelete = gameVariation === 'with-remove' || gameVariation === 'with-remove-move';
+            this.allowMove = gameVariation === 'with-remove-move';
+        }
 
         this.deleteCooldown = 5;
         this.moveCooldown = 3;
@@ -407,6 +423,7 @@ class GameRoom {
             deleteCooldown: this.deleteCooldown,
             moveCooldown: this.moveCooldown,
             gameVariation: this.gameVariation,
+            gameMode: this.gameMode,
             allowDelete: this.allowDelete,
             allowMove: this.allowMove
         };
@@ -427,18 +444,18 @@ io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
 
     // Create a new room
-    socket.on('createRoom', ({ playerName, numPlayers, gameVariation = 'normal' }) => {
+    socket.on('createRoom', ({ playerName, numPlayers, gameVariation = 'normal', gameMode = 'wild' }) => {
         let roomCode = generateRoomCode();
         // Ensure unique code
         while (rooms.has(roomCode)) {
             roomCode = generateRoomCode();
         }
 
-        const room = new GameRoom(roomCode, socket.id, numPlayers, playerName, gameVariation);
+        const room = new GameRoom(roomCode, socket.id, numPlayers, playerName, gameVariation, gameMode);
         rooms.set(roomCode, room);
         socket.join(roomCode);
 
-        console.log(`Room ${roomCode} created by ${playerName} with variation: ${gameVariation}`);
+        console.log(`Room ${roomCode} created by ${playerName} with variation: ${gameVariation}, mode: ${gameMode}`);
 
         socket.emit('roomCreated', {
             roomCode,

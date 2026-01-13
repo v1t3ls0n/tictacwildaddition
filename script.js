@@ -36,8 +36,10 @@ class OnlineTicTacToe {
         this.deleteCooldown = state.deleteCooldown;
         this.moveCooldown = state.moveCooldown;
         this.gameVariation = state.gameVariation || 'normal';
-        this.allowDelete = state.allowDelete !== undefined ? state.allowDelete : (this.gameVariation === 'with-remove' || this.gameVariation === 'with-remove-move');
-        this.allowMove = state.allowMove !== undefined ? state.allowMove : (this.gameVariation === 'with-remove-move');
+        this.gameMode = state.gameMode || 'wild';
+        // Use allowDelete and allowMove from state (set by server based on gameMode)
+        this.allowDelete = state.allowDelete !== undefined ? state.allowDelete : false;
+        this.allowMove = state.allowMove !== undefined ? state.allowMove : false;
         this.scores = {};
         this.currentAction = 'mark';
         this.winningCells = [];
@@ -472,15 +474,32 @@ class OnlineTicTacToe {
 
 // ==================== LOCAL GAME CLASS ====================
 class TicTacToe {
-    constructor(numPlayers, vsComputer = false, playerConfig = null, difficultyLevels = null, gameVariation = 'normal') {
+    constructor(numPlayers, vsComputer = false, playerConfig = null, difficultyLevels = null, gameVariation = 'normal', gameMode = 'wild') {
         this.numPlayers = numPlayers;
         this.vsComputer = vsComputer;
-        this.boardSize = 4 + numPlayers;
-        this.winLength = 4;
+        this.gameMode = gameMode; // 'classic' or 'wild'
+        
+        // Set board size and win length based on game mode
+        if (gameMode === 'classic') {
+            this.boardSize = 3;
+            this.winLength = 3;
+            this.numPlayers = 2; // Classic mode only supports 2 players
+        } else {
+            this.boardSize = 4 + numPlayers;
+            this.winLength = 4;
+        }
+        
         this.board = Array(this.boardSize * this.boardSize).fill('');
         this.gameVariation = gameVariation;
-        this.allowDelete = gameVariation === 'with-remove' || gameVariation === 'with-remove-move';
-        this.allowMove = gameVariation === 'with-remove-move';
+        
+        // Classic mode doesn't allow delete/move
+        if (gameMode === 'classic') {
+            this.allowDelete = false;
+            this.allowMove = false;
+        } else {
+            this.allowDelete = gameVariation === 'with-remove' || gameVariation === 'with-remove-move';
+            this.allowMove = gameVariation === 'with-remove-move';
+        }
 
         this.players = PLAYER_SYMBOLS.slice(0, numPlayers);
         this.currentPlayerIndex = 0;
@@ -1722,6 +1741,7 @@ let game = null;
 let socket = null;
 let selectedPlayerCount = 2;
 let selectedGameVariation = 'normal';
+let selectedGameMode = 'wild'; // 'classic' or 'wild'
 
 // Variation names mapping
 const VARIATION_NAMES = {
@@ -1735,6 +1755,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainMenuModal = document.getElementById('main-menu-modal');
     const onlineLobbyModal = document.getElementById('online-lobby-modal');
     const waitingRoomModal = document.getElementById('waiting-room-modal');
+    const gameModeSelectionModal = document.getElementById('game-mode-selection-modal');
     const gameModeModal = document.getElementById('game-mode-modal');
     const playerSelectionModal = document.getElementById('player-selection-modal');
     const variationSelectionModal = document.getElementById('variation-selection-modal');
@@ -1773,6 +1794,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerConfigList = document.getElementById('player-config-list');
     const btnStartConfigGame = document.getElementById('btn-start-config-game');
 
+    // Game mode selection elements
+    const gameModeSelectionBackBtn = document.getElementById('game-mode-selection-back-btn');
+    const gameModeOptionButtons = document.querySelectorAll('.game-mode-option-btn');
+
     // Variation selection elements
     const variationBackBtn = document.getElementById('variation-back-btn');
     const variationOptionButtons = document.querySelectorAll('.variation-option-btn');
@@ -1787,6 +1812,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainMenuModal.style.display = 'none';
         onlineLobbyModal.style.display = 'none';
         waitingRoomModal.style.display = 'none';
+        gameModeSelectionModal.style.display = 'none';
         gameModeModal.style.display = 'none';
         playerSelectionModal.style.display = 'none';
         playerConfigModal.style.display = 'none';
@@ -1812,7 +1838,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Variation selection handlers
     variationBackBtn.addEventListener('click', () => {
         hideAllModals();
-        mainMenuModal.style.display = 'flex';
+        gameModeSelectionModal.style.display = 'flex';
+        // Restore versus mode
+        const versusMode = variationSelectionModal.dataset.versusMode;
+        if (versusMode) {
+            gameModeSelectionModal.dataset.versusMode = versusMode;
+        }
     });
 
     variationOptionButtons.forEach(btn => {
@@ -1822,37 +1853,36 @@ document.addEventListener('DOMContentLoaded', () => {
             updateVariationDisplay();
             hideAllModals();
             
-            // Determine where to go based on game mode
-            const gameMode = variationSelectionModal.dataset.gameMode;
+            // Determine where to go based on versus mode
+            const versusMode = variationSelectionModal.dataset.versusMode;
             
-            if (gameMode === 'online') {
+            if (versusMode === 'online') {
+                selectedGameMode = 'wild'; // Wild mode for online variations
                 onlineLobbyModal.style.display = 'flex';
                 // Initialize socket connection
                 if (!socket) {
                     socket = io();
                     setupSocketListeners();
                 }
-            } else if (gameMode === 'pvp-local') {
-                // Direct to 2-player local game
+            } else if (versusMode === 'pvp-local') {
+                // Direct to 2-player local game (wild mode)
                 hideAllModals();
                 gameContainer.style.display = 'block';
-                game = new TicTacToe(2, false, [true, true], [null, null], selectedGameVariation);
-            } else if (gameMode === 'pvc') {
-                // Direct to vs computer game with difficulty selection
-                // Create a simplified modal for difficulty selection
+                game = new TicTacToe(2, false, [true, true], [null, null], selectedGameVariation, 'wild');
+            } else if (versusMode === 'pvc') {
+                // Direct to vs computer game with difficulty selection (wild mode)
                 hideAllModals();
                 gameModeModal.style.display = 'flex';
-                // Hide mode option buttons and show only difficulty selector
-                document.querySelectorAll('.mode-option-btn').forEach(btn => {
-                    btn.style.display = 'none';
+                document.querySelectorAll('.mode-option-btn').forEach(b => {
+                    b.style.display = 'none';
                 });
                 computerDifficultySection.style.display = 'block';
                 vsComputerStartBtn.style.display = 'block';
-                // Update modal title
                 const modalTitle = gameModeModal.querySelector('h2');
                 if (modalTitle) modalTitle.textContent = 'Player vs Computer';
-            } else if (gameMode === 'multiplayer') {
-                // Show player selection modal
+                gameModeModal.dataset.gameMode = 'wild';
+            } else if (versusMode === 'multiplayer') {
+                // Show player selection modal (wild mode)
                 playerSelectionModal.style.display = 'flex';
             }
         });
@@ -1868,30 +1898,82 @@ document.addEventListener('DOMContentLoaded', () => {
     btnPvpLocal.addEventListener('click', () => {
         selectedPlayerCount = 2;
         hideAllModals();
-        variationSelectionModal.style.display = 'flex';
-        // Store that this is for local 2-player
-        variationSelectionModal.dataset.gameMode = 'pvp-local';
+        gameModeSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.dataset.versusMode = 'pvp-local';
     });
 
     // Player vs Computer
     btnPvc.addEventListener('click', () => {
         hideAllModals();
-        variationSelectionModal.style.display = 'flex';
-        variationSelectionModal.dataset.gameMode = 'pvc';
+        gameModeSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.dataset.versusMode = 'pvc';
     });
 
     // Multi-Player (2-5 Players Local)
     btnMultiplayer.addEventListener('click', () => {
         hideAllModals();
-        variationSelectionModal.style.display = 'flex';
-        variationSelectionModal.dataset.gameMode = 'multiplayer';
+        gameModeSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.dataset.versusMode = 'multiplayer';
     });
 
     // Play Online
     btnOnline.addEventListener('click', () => {
         hideAllModals();
-        variationSelectionModal.style.display = 'flex';
-        variationSelectionModal.dataset.gameMode = 'online';
+        gameModeSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.dataset.versusMode = 'online';
+    });
+
+    // Game mode selection handlers
+    gameModeSelectionBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    gameModeOptionButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const gameMode = e.target.closest('.game-mode-option-btn').getAttribute('data-game-mode');
+            selectedGameMode = gameMode;
+            const versusMode = gameModeSelectionModal.dataset.versusMode;
+
+            hideAllModals();
+
+            if (gameMode === 'classic') {
+                // Classic mode: skip variation selection, go directly to game setup
+                if (versusMode === 'pvp-local') {
+                    // Direct to 2-player classic game
+                    gameContainer.style.display = 'block';
+                    game = new TicTacToe(2, false, [true, true], [null, null], 'normal', 'classic');
+                } else if (versusMode === 'pvc') {
+                    // Show difficulty selection for vs computer
+                    gameModeModal.style.display = 'flex';
+                    document.querySelectorAll('.mode-option-btn').forEach(b => b.style.display = 'none');
+                    computerDifficultySection.style.display = 'block';
+                    vsComputerStartBtn.style.display = 'block';
+                    const modalTitle = gameModeModal.querySelector('h2');
+                    if (modalTitle) modalTitle.textContent = 'Player vs Computer - Classic';
+                    gameModeModal.dataset.gameMode = 'classic';
+                } else if (versusMode === 'multiplayer') {
+                    // Classic mode only supports 2 players
+                    alert('Classic Tic Tac Toe only supports 2 players. Please choose Wild Addition for multiplayer.');
+                    hideAllModals();
+                    gameModeSelectionModal.style.display = 'flex';
+                    gameModeSelectionModal.dataset.versusMode = versusMode;
+            } else if (versusMode === 'online') {
+                // Online classic mode
+                selectedGameMode = 'classic';
+                onlineLobbyModal.style.display = 'flex';
+                selectedPlayerCount = 2; // Classic is always 2 players
+                if (!socket) {
+                    socket = io();
+                    setupSocketListeners();
+                }
+            }
+            } else {
+                // Wild mode: show variation selection
+                variationSelectionModal.style.display = 'flex';
+                variationSelectionModal.dataset.versusMode = versusMode;
+            }
+        });
     });
 
     // Lobby handlers
@@ -1924,7 +2006,8 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('createRoom', {
             playerName,
             numPlayers: selectedPlayerCount,
-            gameVariation: selectedGameVariation
+            gameVariation: selectedGameVariation,
+            gameMode: selectedGameMode
         });
     });
 
@@ -2007,9 +2090,10 @@ document.addEventListener('DOMContentLoaded', () => {
     vsComputerStartBtn.style.display = 'none';
     vsComputerStartBtn.addEventListener('click', () => {
         const difficulty = vsComputerDifficultySelect.value;
+        const gameMode = gameModeModal.dataset.gameMode || 'wild';
         hideAllModals();
         gameContainer.style.display = 'block';
-        game = new TicTacToe(2, true, null, [null, difficulty], selectedGameVariation);
+        game = new TicTacToe(2, true, null, [null, difficulty], selectedGameVariation, gameMode);
     });
 
     // Add start button to modal
@@ -2065,7 +2149,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const numPlayers = playerConfig.length;
         hideAllModals();
         gameContainer.style.display = 'block';
-        game = new TicTacToe(numPlayers, false, playerConfig, difficultyLevels, selectedGameVariation);
+        game = new TicTacToe(numPlayers, false, playerConfig, difficultyLevels, selectedGameVariation, 'wild');
     });
 
     function showPlayerConfigModal(numPlayers) {
