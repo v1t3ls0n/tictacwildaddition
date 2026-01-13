@@ -36,8 +36,10 @@ class OnlineTicTacToe {
         this.deleteCooldown = state.deleteCooldown;
         this.moveCooldown = state.moveCooldown;
         this.gameVariation = state.gameVariation || 'normal';
-        this.allowDelete = state.allowDelete !== undefined ? state.allowDelete : (this.gameVariation === 'with-remove' || this.gameVariation === 'with-remove-move');
-        this.allowMove = state.allowMove !== undefined ? state.allowMove : (this.gameVariation === 'with-remove-move');
+        this.gameMode = state.gameMode || 'wild';
+        // Use allowDelete and allowMove from state (set by server based on gameMode)
+        this.allowDelete = state.allowDelete !== undefined ? state.allowDelete : false;
+        this.allowMove = state.allowMove !== undefined ? state.allowMove : false;
         this.scores = {};
         this.currentAction = 'mark';
         this.winningCells = [];
@@ -301,10 +303,10 @@ class OnlineTicTacToe {
 
         switch (action) {
             case 'mark': return true;
-            case 'delete': 
+            case 'delete':
                 if (!this.allowDelete) return false;
                 return counters.movesSinceDelete >= this.deleteCooldown;
-            case 'move': 
+            case 'move':
                 if (!this.allowMove) return false;
                 return counters.movesSinceMove >= this.moveCooldown;
             default: return false;
@@ -335,10 +337,10 @@ class OnlineTicTacToe {
                     btn.style.display = 'none';
                     return;
                 }
-                
+
                 // Show allowed actions
                 btn.style.display = 'inline-flex';
-                
+
                 const isAvailable = this.isActionAvailable(action);
                 if (isAvailable) {
                     btn.classList.remove('disabled');
@@ -472,15 +474,32 @@ class OnlineTicTacToe {
 
 // ==================== LOCAL GAME CLASS ====================
 class TicTacToe {
-    constructor(numPlayers, vsComputer = false, playerConfig = null, difficultyLevels = null, gameVariation = 'normal') {
+    constructor(numPlayers, vsComputer = false, playerConfig = null, difficultyLevels = null, gameVariation = 'normal', gameMode = 'wild') {
         this.numPlayers = numPlayers;
         this.vsComputer = vsComputer;
-        this.boardSize = 4 + numPlayers;
-        this.winLength = 4;
+        this.gameMode = gameMode; // 'classic' or 'wild'
+
+        // Set board size and win length based on game mode
+        if (gameMode === 'classic') {
+            this.boardSize = 3;
+            this.winLength = 3;
+            this.numPlayers = 2; // Classic mode only supports 2 players
+        } else {
+            this.boardSize = 4 + numPlayers;
+            this.winLength = 4;
+        }
+
         this.board = Array(this.boardSize * this.boardSize).fill('');
         this.gameVariation = gameVariation;
-        this.allowDelete = gameVariation === 'with-remove' || gameVariation === 'with-remove-move';
-        this.allowMove = gameVariation === 'with-remove-move';
+
+        // Classic mode doesn't allow delete/move
+        if (gameMode === 'classic') {
+            this.allowDelete = false;
+            this.allowMove = false;
+        } else {
+            this.allowDelete = gameVariation === 'with-remove' || gameVariation === 'with-remove-move';
+            this.allowMove = gameVariation === 'with-remove-move';
+        }
 
         this.players = PLAYER_SYMBOLS.slice(0, numPlayers);
         this.currentPlayerIndex = 0;
@@ -750,10 +769,10 @@ class TicTacToe {
 
         switch (action) {
             case 'mark': return true;
-            case 'delete': 
+            case 'delete':
                 if (!this.allowDelete) return false;
                 return counters.movesSinceDelete >= this.deleteCooldown;
-            case 'move': 
+            case 'move':
                 if (!this.allowMove) return false;
                 return counters.movesSinceMove >= this.moveCooldown;
             default: return false;
@@ -803,10 +822,10 @@ class TicTacToe {
                     btn.style.display = 'none';
                     return;
                 }
-                
+
                 // Show allowed actions
                 btn.style.display = 'inline-flex';
-                
+
                 const isAvailable = this.isActionAvailable(action);
                 if (isAvailable) {
                     btn.classList.remove('disabled');
@@ -877,32 +896,32 @@ class TicTacToe {
             console.error('Board element not found!');
             return;
         }
-        
+
         const cell = boardElement.querySelector(`[data-index="${index}"]`);
         const player = this.board[index];
-        
+
         if (!cell) {
             console.error(`Cell at index ${index} not found in board!`);
             return;
         }
-        
+
         if (player) {
             const config = PLAYER_CONFIGS[player];
             if (!config) {
                 console.error(`No config found for player: ${player}`);
                 return;
             }
-            
+
             // Remove all player symbol classes first
             PLAYER_SYMBOLS.forEach(p => {
                 cell.classList.remove(p.toLowerCase());
             });
-            
+
             // Set the content and styling
             cell.textContent = config.symbol;
             cell.style.color = config.color;
             cell.classList.add('marked');
-            
+
             // Add the current player's class
             const playerClass = player.toLowerCase();
             cell.classList.add(playerClass);
@@ -921,10 +940,10 @@ class TicTacToe {
         // Scope the query to the board element to avoid conflicts with modal elements
         const boardElement = document.getElementById('board');
         if (!boardElement) return;
-        
+
         const cell = boardElement.querySelector(`[data-index="${index}"]`);
         if (!cell) return;
-        
+
         cell.textContent = '';
         cell.style.color = '';
         cell.classList.remove('marked', 'x', 'o', 'c', 't', 's', 'disabled', 'winning');
@@ -1009,7 +1028,7 @@ class TicTacToe {
     highlightWinningCells() {
         const boardElement = document.getElementById('board');
         if (!boardElement) return;
-        
+
         this.winningCells.forEach(index => {
             const cell = boardElement.querySelector(`[data-index="${index}"]`);
             if (cell) {
@@ -1409,7 +1428,7 @@ class TicTacToe {
         const progressBar = document.getElementById('computer-progress-bar');
         const progressText = document.getElementById('computer-progress-text');
         const progressContainer = document.getElementById('computer-progress-container');
-        
+
         if (progressBar) {
             progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
         }
@@ -1434,7 +1453,7 @@ class TicTacToe {
 
     makeComputerMove() {
         if (!this.isComputerTurn || !this.gameActive) return;
-        
+
         // Prevent multiple simultaneous computer moves
         if (this._computingMove) return;
         this._computingMove = true;
@@ -1496,13 +1515,13 @@ class TicTacToe {
                         this.currentPlayer, opponents, newCounters, currentDepth);
 
                     movesEvaluated++;
-                    
+
                     // Update progress: 10% for initialization, 80% for move evaluation, 10% for finalization
                     const moveProgress = 10 + (movesEvaluated / (totalMoves * maxDepth)) * 80;
                     const depthProgress = (currentDepth / maxDepth) * 80;
                     const timeProgress = Math.min(90, 10 + ((performance.now() - startTime) / maxTime) * 80);
                     const overallProgress = Math.min(95, Math.max(moveProgress, depthProgress, timeProgress));
-                    
+
                     this.updateProgressBar(
                         overallProgress,
                         `Depth ${currentDepth}/${maxDepth} - Evaluating move ${moveIndex + 1}/${totalMoves}...`
@@ -1722,6 +1741,7 @@ let game = null;
 let socket = null;
 let selectedPlayerCount = 2;
 let selectedGameVariation = 'normal';
+let selectedGameMode = 'wild'; // 'classic' or 'wild'
 
 // Variation names mapping
 const VARIATION_NAMES = {
@@ -1735,6 +1755,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainMenuModal = document.getElementById('main-menu-modal');
     const onlineLobbyModal = document.getElementById('online-lobby-modal');
     const waitingRoomModal = document.getElementById('waiting-room-modal');
+    const gameModeSelectionModal = document.getElementById('game-mode-selection-modal');
     const gameModeModal = document.getElementById('game-mode-modal');
     const playerSelectionModal = document.getElementById('player-selection-modal');
     const variationSelectionModal = document.getElementById('variation-selection-modal');
@@ -1742,7 +1763,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Main menu buttons
     const btnOnline = document.getElementById('btn-online');
-    const btnLocal = document.getElementById('btn-local');
+    const btnPvpLocal = document.getElementById('btn-pvp-local');
+    const btnPvc = document.getElementById('btn-pvc');
+    const btnMultiplayer = document.getElementById('btn-multiplayer');
+    const btnBonusModes = document.getElementById('btn-bonus-modes');
+
+    // Bonus modes elements
+    const bonusModesModal = document.getElementById('bonus-modes-modal');
+    const bonusModesBackBtn = document.getElementById('bonus-modes-back-btn');
+    const btnMazeMode = document.getElementById('btn-maze-mode');
+
+    // Maze mode elements
+    const mazeDifficultyModal = document.getElementById('maze-difficulty-modal');
+    const mazeDifficultyBackBtn = document.getElementById('maze-difficulty-back-btn');
+    const difficultyOptionButtons = document.querySelectorAll('.difficulty-option-btn');
+    const mazeContainer = document.getElementById('maze-container');
+    const mazeBoard = document.getElementById('maze-board');
+    const mazeResetBtn = document.getElementById('maze-reset-btn');
+    const mazeBackBtn = document.getElementById('maze-back-btn');
+    const mazeStatus = document.getElementById('maze-status');
+    const mazeMovesDisplay = document.getElementById('maze-moves');
+    const mazeDifficultyDisplay = document.getElementById('maze-difficulty-display');
 
     // Lobby elements
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
@@ -1771,6 +1812,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerConfigList = document.getElementById('player-config-list');
     const btnStartConfigGame = document.getElementById('btn-start-config-game');
 
+    // Game mode selection elements
+    const gameModeSelectionBackBtn = document.getElementById('game-mode-selection-back-btn');
+    const gameModeOptionButtons = document.querySelectorAll('.game-mode-option-btn');
+
     // Variation selection elements
     const variationBackBtn = document.getElementById('variation-back-btn');
     const variationOptionButtons = document.querySelectorAll('.variation-option-btn');
@@ -1785,10 +1830,13 @@ document.addEventListener('DOMContentLoaded', () => {
         mainMenuModal.style.display = 'none';
         onlineLobbyModal.style.display = 'none';
         waitingRoomModal.style.display = 'none';
+        gameModeSelectionModal.style.display = 'none';
         gameModeModal.style.display = 'none';
         playerSelectionModal.style.display = 'none';
         playerConfigModal.style.display = 'none';
         variationSelectionModal.style.display = 'none';
+        bonusModesModal.style.display = 'none';
+        mazeDifficultyModal.style.display = 'none';
     }
 
     function updateVariationDisplay() {
@@ -1810,7 +1858,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Variation selection handlers
     variationBackBtn.addEventListener('click', () => {
         hideAllModals();
-        mainMenuModal.style.display = 'flex';
+        gameModeSelectionModal.style.display = 'flex';
+        // Restore versus mode
+        const versusMode = variationSelectionModal.dataset.versusMode;
+        if (versusMode) {
+            gameModeSelectionModal.dataset.versusMode = versusMode;
+        }
     });
 
     variationOptionButtons.forEach(btn => {
@@ -1819,18 +1872,38 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedGameVariation = variation;
             updateVariationDisplay();
             hideAllModals();
-            
-            // Determine where to go based on which button was clicked
-            const wasOnline = document.getElementById('btn-online').dataset.clicked === 'true';
-            if (wasOnline) {
+
+            // Determine where to go based on versus mode
+            const versusMode = variationSelectionModal.dataset.versusMode;
+
+            if (versusMode === 'online') {
+                selectedGameMode = 'wild'; // Wild mode for online variations
                 onlineLobbyModal.style.display = 'flex';
                 // Initialize socket connection
                 if (!socket) {
                     socket = io();
                     setupSocketListeners();
                 }
-            } else {
+            } else if (versusMode === 'pvp-local') {
+                // Direct to 2-player local game (wild mode)
+                hideAllModals();
+                gameContainer.style.display = 'block';
+                game = new TicTacToe(2, false, [true, true], [null, null], selectedGameVariation, 'wild');
+            } else if (versusMode === 'pvc') {
+                // Direct to vs computer game with difficulty selection (wild mode)
+                hideAllModals();
                 gameModeModal.style.display = 'flex';
+                document.querySelectorAll('.mode-option-btn').forEach(b => {
+                    b.style.display = 'none';
+                });
+                computerDifficultySection.style.display = 'block';
+                vsComputerStartBtn.style.display = 'block';
+                const modalTitle = gameModeModal.querySelector('h2');
+                if (modalTitle) modalTitle.textContent = 'Player vs Computer';
+                gameModeModal.dataset.gameMode = 'wild';
+            } else if (versusMode === 'multiplayer') {
+                // Show player selection modal (wild mode)
+                playerSelectionModal.style.display = 'flex';
             }
         });
     });
@@ -1841,11 +1914,86 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Main menu handlers
-    btnOnline.addEventListener('click', () => {
-        document.getElementById('btn-online').dataset.clicked = 'true';
-        document.getElementById('btn-local').dataset.clicked = 'false';
+    // Player vs Player (Local 2 Players)
+    btnPvpLocal.addEventListener('click', () => {
+        selectedPlayerCount = 2;
         hideAllModals();
-        variationSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.dataset.versusMode = 'pvp-local';
+    });
+
+    // Player vs Computer
+    btnPvc.addEventListener('click', () => {
+        hideAllModals();
+        gameModeSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.dataset.versusMode = 'pvc';
+    });
+
+    // Multi-Player (2-5 Players Local)
+    btnMultiplayer.addEventListener('click', () => {
+        hideAllModals();
+        gameModeSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.dataset.versusMode = 'multiplayer';
+    });
+
+    // Play Online
+    btnOnline.addEventListener('click', () => {
+        hideAllModals();
+        gameModeSelectionModal.style.display = 'flex';
+        gameModeSelectionModal.dataset.versusMode = 'online';
+    });
+
+    // Game mode selection handlers
+    gameModeSelectionBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    gameModeOptionButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const gameMode = e.target.closest('.game-mode-option-btn').getAttribute('data-game-mode');
+            selectedGameMode = gameMode;
+            const versusMode = gameModeSelectionModal.dataset.versusMode;
+
+            hideAllModals();
+
+            if (gameMode === 'classic') {
+                // Classic mode: skip variation selection, go directly to game setup
+                if (versusMode === 'pvp-local') {
+                    // Direct to 2-player classic game
+                    gameContainer.style.display = 'block';
+                    game = new TicTacToe(2, false, [true, true], [null, null], 'normal', 'classic');
+                } else if (versusMode === 'pvc') {
+                    // Show difficulty selection for vs computer
+                    gameModeModal.style.display = 'flex';
+                    document.querySelectorAll('.mode-option-btn').forEach(b => b.style.display = 'none');
+                    computerDifficultySection.style.display = 'block';
+                    vsComputerStartBtn.style.display = 'block';
+                    const modalTitle = gameModeModal.querySelector('h2');
+                    if (modalTitle) modalTitle.textContent = 'Player vs Computer - Classic';
+                    gameModeModal.dataset.gameMode = 'classic';
+                } else if (versusMode === 'multiplayer') {
+                    // Classic mode only supports 2 players
+                    alert('Classic Tic Tac Toe only supports 2 players. Please choose Wild Addition for multiplayer.');
+                    hideAllModals();
+                    gameModeSelectionModal.style.display = 'flex';
+                    gameModeSelectionModal.dataset.versusMode = versusMode;
+                } else if (versusMode === 'online') {
+                    // Online classic mode
+                    selectedGameMode = 'classic';
+                    onlineLobbyModal.style.display = 'flex';
+                    selectedPlayerCount = 2; // Classic is always 2 players
+                    if (!socket) {
+                        socket = io();
+                        setupSocketListeners();
+                    }
+                }
+            } else {
+                // Wild mode: show variation selection
+                variationSelectionModal.style.display = 'flex';
+                variationSelectionModal.dataset.versusMode = versusMode;
+            }
+        });
     });
 
     // Lobby handlers
@@ -1878,7 +2026,8 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('createRoom', {
             playerName,
             numPlayers: selectedPlayerCount,
-            gameVariation: selectedGameVariation
+            gameVariation: selectedGameVariation,
+            gameMode: selectedGameMode
         });
     });
 
@@ -1924,17 +2073,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Local game handlers
     modeBackBtn.addEventListener('click', () => {
-        hideAllModals();
-        mainMenuModal.style.display = 'flex';
+        // If we came from a specific game mode, go back to variation selection
+        if (variationSelectionModal.dataset.gameMode) {
+            hideAllModals();
+            variationSelectionModal.style.display = 'flex';
+            // Reset mode option buttons visibility
+            document.querySelectorAll('.mode-option-btn').forEach(btn => {
+                btn.style.display = 'block';
+            });
+            computerDifficultySection.style.display = 'none';
+            vsComputerStartBtn.style.display = 'none';
+            // Reset modal title
+            const modalTitle = gameModeModal.querySelector('h2');
+            if (modalTitle) modalTitle.textContent = 'Select Game Mode';
+        } else {
+            hideAllModals();
+            mainMenuModal.style.display = 'flex';
+        }
     });
 
-    // When opening local game, show variation selection first
-    btnLocal.addEventListener('click', () => {
-        document.getElementById('btn-online').dataset.clicked = 'false';
-        document.getElementById('btn-local').dataset.clicked = 'true';
-        hideAllModals();
-        variationSelectionModal.style.display = 'flex';
-    });
 
 
     playersBackBtn.addEventListener('click', () => {
@@ -1953,9 +2110,10 @@ document.addEventListener('DOMContentLoaded', () => {
     vsComputerStartBtn.style.display = 'none';
     vsComputerStartBtn.addEventListener('click', () => {
         const difficulty = vsComputerDifficultySelect.value;
+        const gameMode = gameModeModal.dataset.gameMode || 'wild';
         hideAllModals();
         gameContainer.style.display = 'block';
-        game = new TicTacToe(2, true, null, [null, difficulty], selectedGameVariation);
+        game = new TicTacToe(2, true, null, [null, difficulty], selectedGameVariation, gameMode);
     });
 
     // Add start button to modal
@@ -1970,6 +2128,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 computerDifficultySection.style.display = 'block';
                 vsComputerStartBtn.style.display = 'block';
             } else {
+                // This shouldn't be reached from the new home screen, but keep for compatibility
                 computerDifficultySection.style.display = 'none';
                 vsComputerStartBtn.style.display = 'none';
                 hideAllModals();
@@ -2010,7 +2169,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const numPlayers = playerConfig.length;
         hideAllModals();
         gameContainer.style.display = 'block';
-        game = new TicTacToe(numPlayers, false, playerConfig, difficultyLevels, selectedGameVariation);
+        game = new TicTacToe(numPlayers, false, playerConfig, difficultyLevels, selectedGameVariation, 'wild');
     });
 
     function showPlayerConfigModal(numPlayers) {
@@ -2171,4 +2330,385 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize variation display
     updateVariationDisplay();
+
+    // Bonus modes handlers
+    btnBonusModes.addEventListener('click', () => {
+        hideAllModals();
+        bonusModesModal.style.display = 'flex';
+    });
+
+    bonusModesBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    btnMazeMode.addEventListener('click', () => {
+        hideAllModals();
+        mazeDifficultyModal.style.display = 'flex';
+    });
+
+    mazeDifficultyBackBtn.addEventListener('click', () => {
+        hideAllModals();
+        bonusModesModal.style.display = 'flex';
+    });
+
+    // Maze game variables
+    let currentMaze = null;
+    let playerXPosition = null; // X player position
+    let playerOPosition = null; // O player position
+    let currentPlayer = 'X'; // Current player ('X' or 'O')
+    let mazeMoves = 0;
+    let currentDifficulty = 1;
+    let mazeSize = 5;
+
+    // Difficulty configurations
+    const MAZE_DIFFICULTIES = {
+        1: { size: 5, name: 'Very Easy' },
+        2: { size: 7, name: 'Easy' },
+        3: { size: 10, name: 'Medium' },
+        4: { size: 15, name: 'Hard' },
+        5: { size: 20, name: 'Very Hard' }
+    };
+
+    difficultyOptionButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const difficulty = parseInt(e.target.closest('.difficulty-option-btn').getAttribute('data-difficulty'));
+            currentDifficulty = difficulty;
+            mazeSize = MAZE_DIFFICULTIES[difficulty].size;
+            startMazeGame(difficulty);
+        });
+    });
+
+    function startMazeGame(difficulty) {
+        hideAllModals();
+        mazeContainer.style.display = 'block';
+        gameContainer.style.display = 'none';
+
+        currentDifficulty = difficulty;
+        mazeSize = MAZE_DIFFICULTIES[difficulty].size;
+        mazeMoves = 0;
+        currentPlayer = 'X';
+        mazeStatus.textContent = "Player X's turn";
+        mazeStatus.style.color = '#ff6b6b';
+        mazeStatus.classList.remove('success');
+        mazeDifficultyDisplay.textContent = `Difficulty: ${MAZE_DIFFICULTIES[difficulty].name}`;
+        updateMovesDisplay();
+
+        generateMaze(difficulty);
+        renderMaze();
+    }
+
+    function generateMaze(difficulty) {
+        // Initialize maze with walls
+        currentMaze = Array(mazeSize).fill(null).map(() => Array(mazeSize).fill(1));
+
+        // Use recursive backtracking algorithm to generate maze
+        const stack = [];
+        const visited = Array(mazeSize).fill(null).map(() => Array(mazeSize).fill(false));
+
+        // Start from top-left
+        let current = { row: 0, col: 0 };
+        currentMaze[0][0] = 0; // Path
+        visited[0][0] = true;
+        stack.push(current);
+
+        const directions = [
+            { row: -1, col: 0 }, // Up
+            { row: 1, col: 0 },  // Down
+            { row: 0, col: -1 },  // Left
+            { row: 0, col: 1 }    // Right
+        ];
+
+        while (stack.length > 0) {
+            const neighbors = [];
+
+            for (const dir of directions) {
+                const newRow = current.row + dir.row * 2;
+                const newCol = current.col + dir.col * 2;
+
+                if (newRow >= 0 && newRow < mazeSize &&
+                    newCol >= 0 && newCol < mazeSize &&
+                    !visited[newRow][newCol]) {
+                    neighbors.push({
+                        row: newRow,
+                        col: newCol,
+                        wallRow: current.row + dir.row,
+                        wallCol: current.col + dir.col
+                    });
+                }
+            }
+
+            if (neighbors.length > 0) {
+                const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+                currentMaze[next.wallRow][next.wallCol] = 0; // Remove wall
+                currentMaze[next.row][next.col] = 0; // Path
+                visited[next.row][next.col] = true;
+                stack.push(current);
+                current = { row: next.row, col: next.col };
+            } else {
+                current = stack.pop();
+            }
+        }
+
+        // Ensure bottom-right is a path
+        currentMaze[mazeSize - 1][mazeSize - 1] = 0;
+        if (mazeSize > 1) {
+            currentMaze[mazeSize - 2][mazeSize - 1] = 0;
+            currentMaze[mazeSize - 1][mazeSize - 2] = 0;
+        }
+
+        // Set player positions (X starts top-left, O starts bottom-right)
+        playerXPosition = { row: 0, col: 0 };
+        playerOPosition = { row: mazeSize - 1, col: mazeSize - 1 };
+        currentPlayer = 'X'; // Start with X
+
+        // Add some random walls for difficulty (more walls = harder)
+        // But ensure there's still a path from start to finish
+        if (difficulty > 1) {
+            const wallDensity = [0, 0.05, 0.1, 0.15, 0.2][difficulty - 1];
+            const totalCells = mazeSize * mazeSize;
+            const wallsToAdd = Math.floor(totalCells * wallDensity);
+
+            for (let i = 0; i < wallsToAdd; i++) {
+                const row = Math.floor(Math.random() * mazeSize);
+                const col = Math.floor(Math.random() * mazeSize);
+
+                // Don't block start or end
+                if (!(row === 0 && col === 0) && !(row === mazeSize - 1 && col === mazeSize - 1)) {
+                    // Temporarily add wall
+                    const original = currentMaze[row][col];
+                    if (original === 0) { // Only add wall if it's currently a path
+                        currentMaze[row][col] = 1;
+
+                        // Check if path still exists
+                        if (!hasPath(0, 0, mazeSize - 1, mazeSize - 1)) {
+                            // Path broken, revert
+                            currentMaze[row][col] = original;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function hasPath(startRow, startCol, endRow, endCol) {
+        const visited = Array(mazeSize).fill(null).map(() => Array(mazeSize).fill(false));
+        const queue = [{ row: startRow, col: startCol }];
+        visited[startRow][startCol] = true;
+
+        const directions = [
+            { row: -1, col: 0 }, // Up
+            { row: 1, col: 0 },  // Down
+            { row: 0, col: -1 }, // Left
+            { row: 0, col: 1 }   // Right
+        ];
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+
+            if (current.row === endRow && current.col === endCol) {
+                return true;
+            }
+
+            for (const dir of directions) {
+                const newRow = current.row + dir.row;
+                const newCol = current.col + dir.col;
+
+                if (newRow >= 0 && newRow < mazeSize &&
+                    newCol >= 0 && newCol < mazeSize &&
+                    !visited[newRow][newCol] &&
+                    currentMaze[newRow][newCol] === 0) {
+                    visited[newRow][newCol] = true;
+                    queue.push({ row: newRow, col: newCol });
+                }
+            }
+        }
+
+        return false;
+    }
+
+    function renderMaze() {
+        mazeBoard.innerHTML = '';
+        mazeBoard.style.gridTemplateColumns = `repeat(${mazeSize}, 1fr)`;
+
+        // Calculate cell size based on maze size
+        const maxSize = Math.min(600, window.innerWidth - 100);
+        const cellSize = Math.floor(maxSize / mazeSize);
+        mazeBoard.style.gridTemplateColumns = `repeat(${mazeSize}, ${cellSize}px)`;
+
+        for (let row = 0; row < mazeSize; row++) {
+            for (let col = 0; col < mazeSize; col++) {
+                const cell = document.createElement('div');
+                cell.className = 'maze-cell';
+                cell.setAttribute('data-row', row);
+                cell.setAttribute('data-col', col);
+
+                if (currentMaze[row][col] === 1) {
+                    cell.classList.add('wall');
+                } else {
+                    cell.classList.add('path');
+
+                    if (row === playerXPosition.row && col === playerXPosition.col) {
+                        cell.classList.add('player');
+                        cell.classList.add('player-x');
+                        cell.textContent = '✕';
+                    } else if (row === playerOPosition.row && col === playerOPosition.col) {
+                        cell.classList.add('player');
+                        cell.classList.add('player-o');
+                        cell.textContent = '○';
+                    }
+
+                    cell.addEventListener('click', () => handleMazeCellClick(row, col));
+                }
+
+                mazeBoard.appendChild(cell);
+            }
+        }
+    }
+
+    function handleMazeCellClick(row, col) {
+        if (!currentMaze || !playerXPosition || !playerOPosition) return;
+        if (currentMaze[row][col] === 1) return; // Can't move to wall
+
+        // Determine which player to move based on current turn
+        const activePosition = currentPlayer === 'X' ? playerXPosition : playerOPosition;
+        const otherPosition = currentPlayer === 'X' ? playerOPosition : playerXPosition;
+
+        // Can't move to the other player's position
+        if (row === otherPosition.row && col === otherPosition.col) {
+            mazeStatus.textContent = `⚠️ That cell is occupied by ${currentPlayer === 'X' ? 'O' : 'X'}!`;
+            mazeStatus.style.color = '#ff6b6b';
+            setTimeout(() => {
+                if (!mazeStatus.classList.contains('success')) {
+                    mazeStatus.textContent = '';
+                }
+            }, 1500);
+            return;
+        }
+
+        // Check if cell is adjacent to current player (horizontally or vertically)
+        const rowDiff = Math.abs(row - activePosition.row);
+        const colDiff = Math.abs(col - activePosition.col);
+
+        // Allow movement to adjacent cells (up, down, left, right)
+        if ((rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)) {
+            // Move the current player
+            if (currentPlayer === 'X') {
+                playerXPosition = { row, col };
+            } else {
+                playerOPosition = { row, col };
+            }
+
+            mazeMoves++;
+            updateMovesDisplay();
+
+            // Switch turns
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            mazeStatus.textContent = `Player ${currentPlayer}'s turn`;
+            mazeStatus.style.color = currentPlayer === 'X' ? '#ff6b6b' : '#4ecdc4';
+
+            renderMaze();
+
+            // Check if players meet (optional win condition)
+            if (playerXPosition.row === playerOPosition.row && playerXPosition.col === playerOPosition.col) {
+                mazeStatus.textContent = `🎉 Players met! Game complete in ${mazeMoves} moves!`;
+                mazeStatus.classList.add('success');
+                // Disable further moves
+                setTimeout(() => {
+                    const cells = mazeBoard.querySelectorAll('.maze-cell.path');
+                    cells.forEach(cell => {
+                        cell.style.pointerEvents = 'none';
+                    });
+                }, 100);
+            }
+        } else {
+            // Show feedback for invalid move
+            mazeStatus.textContent = `⚠️ Player ${currentPlayer} can only move to adjacent cells!`;
+            mazeStatus.style.color = '#ff6b6b';
+            setTimeout(() => {
+                if (!mazeStatus.classList.contains('success')) {
+                    mazeStatus.textContent = '';
+                }
+            }, 1500);
+        }
+    }
+
+    function updateMovesDisplay() {
+        mazeMovesDisplay.textContent = `Moves: ${mazeMoves}`;
+    }
+
+    mazeResetBtn.addEventListener('click', () => {
+        if (currentDifficulty) {
+            startMazeGame(currentDifficulty);
+        }
+    });
+
+    mazeBackBtn.addEventListener('click', () => {
+        mazeContainer.style.display = 'none';
+        hideAllModals();
+        mainMenuModal.style.display = 'flex';
+    });
+
+    // Keyboard controls for maze
+    document.addEventListener('keydown', (e) => {
+        if (mazeContainer.style.display === 'none' || !currentMaze || !playerXPosition || !playerOPosition) return;
+
+        // Don't process if game is won
+        if (mazeStatus.classList.contains('success')) return;
+
+        // Determine which player to move
+        const activePosition = currentPlayer === 'X' ? playerXPosition : playerOPosition;
+        let newRow = activePosition.row;
+        let newCol = activePosition.col;
+
+        // X uses arrow keys, O uses WASD
+        if (currentPlayer === 'X') {
+            switch (e.key) {
+                case 'ArrowUp':
+                    newRow--;
+                    break;
+                case 'ArrowDown':
+                    newRow++;
+                    break;
+                case 'ArrowLeft':
+                    newCol--;
+                    break;
+                case 'ArrowRight':
+                    newCol++;
+                    break;
+                default:
+                    return;
+            }
+        } else {
+            switch (e.key) {
+                case 'w':
+                case 'W':
+                    newRow--;
+                    break;
+                case 's':
+                case 'S':
+                    newRow++;
+                    break;
+                case 'a':
+                case 'A':
+                    newCol--;
+                    break;
+                case 'd':
+                case 'D':
+                    newCol++;
+                    break;
+                default:
+                    return;
+            }
+        }
+
+        e.preventDefault();
+
+        // Validate move
+        if (newRow >= 0 && newRow < mazeSize &&
+            newCol >= 0 && newCol < mazeSize &&
+            currentMaze[newRow][newCol] === 0) {
+            handleMazeCellClick(newRow, newCol);
+        }
+    });
 });

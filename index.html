@@ -1,244 +1,516 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tic Tac Toe - Online Multiplayer</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-</head>
-<body>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
     <!-- Main Menu Modal -->
     <div class="modal-overlay" id="main-menu-modal">
-        <div class="modal-content main-menu">
-            <div class="game-logo">
-                <span class="logo-x">✕</span>
-                <span class="logo-o">○</span>
-            </div>
-            <h1 class="game-title">Tic Tac Toe</h1>
-            <p class="game-subtitle">Ultimate Edition</p>
-            <div class="menu-options">
-                <button class="menu-btn primary" id="btn-online">
-                    <span class="btn-icon">🌐</span>
-                    Play Online
-                </button>
-                <button class="menu-btn secondary" id="btn-local">
-                    <span class="btn-icon">🎮</span>
-                    Local Game
-                </button>
-            </div>
+      <div class="modal-content main-menu">
+        <div class="game-logo">
+          <span class="logo-x">✕</span>
+          <span class="logo-o">○</span>
         </div>
+        <h1 class="game-title">Tic Tac Toe</h1>
+        <p class="game-subtitle">Ultimate Edition</p>
+        <div class="menu-options">
+          <div class="versus-section">
+            <h3 class="versus-title">Choose Your Game Mode</h3>
+            <div class="versus-grid">
+              <button
+                class="versus-btn"
+                id="btn-pvp-local"
+                data-mode="pvp-local"
+              >
+                <span class="versus-icon">👥</span>
+                <span class="versus-label">Player vs Player</span>
+                <span class="versus-subtitle">Local 2 Players</span>
+              </button>
+              <button class="versus-btn" id="btn-pvc" data-mode="pvc">
+                <span class="versus-icon">🤖</span>
+                <span class="versus-label">Player vs Computer</span>
+                <span class="versus-subtitle">Challenge AI</span>
+              </button>
+              <button
+                class="versus-btn"
+                id="btn-multiplayer"
+                data-mode="multiplayer"
+              >
+                <span class="versus-icon">🎯</span>
+                <span class="versus-label">Multi-Player</span>
+                <span class="versus-subtitle">2-5 Players Local</span>
+              </button>
+              <button
+                class="versus-btn primary"
+                id="btn-online"
+                data-mode="online"
+              >
+                <span class="versus-icon">🌐</span>
+                <span class="versus-label">Play Online</span>
+                <span class="versus-subtitle">Multiplayer Online</span>
+              </button>
+            </div>
+            <button
+              class="menu-btn bonus-btn"
+              id="btn-bonus-modes"
+              style="margin-top: 20px"
+            >
+              <span class="btn-icon">🎁</span>
+              Bonus Modes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bonus Modes Selection Modal -->
+    <div class="modal-overlay" id="bonus-modes-modal" style="display: none">
+      <div class="modal-content">
+        <button class="back-btn" id="bonus-modes-back-btn">← Back</button>
+        <h2>Bonus Modes</h2>
+        <p class="config-subtitle">Special game modes</p>
+        <div class="bonus-modes-grid">
+          <button class="bonus-mode-btn" id="btn-maze-mode">
+            <span class="bonus-mode-icon">🧩</span>
+            <span class="bonus-mode-label">Maze Mode</span>
+            <span class="bonus-mode-subtitle">Two players: Move X and O</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maze Mode Difficulty Selection Modal -->
+    <div class="modal-overlay" id="maze-difficulty-modal" style="display: none">
+      <div class="modal-content">
+        <button class="back-btn" id="maze-difficulty-back-btn">← Back</button>
+        <h2>Maze Mode</h2>
+        <p class="config-subtitle">Select difficulty level</p>
+        <div class="difficulty-options">
+          <button class="difficulty-option-btn" data-difficulty="1">
+            <span class="difficulty-level">Level 1</span>
+            <span class="difficulty-name">Very Easy</span>
+            <span class="difficulty-size">5x5</span>
+          </button>
+          <button class="difficulty-option-btn" data-difficulty="2">
+            <span class="difficulty-level">Level 2</span>
+            <span class="difficulty-name">Easy</span>
+            <span class="difficulty-size">7x7</span>
+          </button>
+          <button class="difficulty-option-btn" data-difficulty="3">
+            <span class="difficulty-level">Level 3</span>
+            <span class="difficulty-name">Medium</span>
+            <span class="difficulty-size">10x10</span>
+          </button>
+          <button class="difficulty-option-btn" data-difficulty="4">
+            <span class="difficulty-level">Level 4</span>
+            <span class="difficulty-name">Hard</span>
+            <span class="difficulty-size">15x15</span>
+          </button>
+          <button class="difficulty-option-btn" data-difficulty="5">
+            <span class="difficulty-level">Level 5</span>
+            <span class="difficulty-name">Very Hard</span>
+            <span class="difficulty-size">20x20</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maze Game Container -->
+    <div class="container" id="maze-container" style="display: none">
+      <div class="game-header">
+        <h1>Maze Mode</h1>
+        <div class="maze-info">
+          <span id="maze-difficulty-display">Difficulty: Level 1</span>
+          <span id="maze-moves">Moves: 0</span>
+        </div>
+      </div>
+      <div class="maze-board" id="maze-board">
+        <!-- Maze cells will be generated here -->
+      </div>
+      <div class="maze-controls">
+        <button class="reset-btn" id="maze-reset-btn">Reset Maze</button>
+        <button class="reset-btn secondary-btn" id="maze-back-btn">
+          Back to Menu
+        </button>
+      </div>
+      <div class="maze-status" id="maze-status"></div>
+    </div>
+
+    <!-- Game Mode Selection Modal -->
+    <div
+      class="modal-overlay"
+      id="game-mode-selection-modal"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="back-btn" id="game-mode-selection-back-btn">
+          ← Back
+        </button>
+        <h2>Select Game Mode</h2>
+        <p class="config-subtitle">Choose your preferred game type</p>
+        <div class="game-mode-options">
+          <button class="game-mode-option-btn" data-game-mode="classic">
+            <div class="game-mode-icon">⭕</div>
+            <div class="game-mode-title">Normal Tic Tac Toe</div>
+            <div class="game-mode-description">
+              Classic 3x3 board, 2 players
+            </div>
+          </button>
+          <button class="game-mode-option-btn" data-game-mode="wild">
+            <div class="game-mode-icon">🎲</div>
+            <div class="game-mode-title">Wild Addition</div>
+            <div class="game-mode-description">
+              Larger boards with special moves
+            </div>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Game Variation Selection Modal -->
-    <div class="modal-overlay" id="variation-selection-modal" style="display: none;">
-        <div class="modal-content">
-            <button class="back-btn" id="variation-back-btn">← Back</button>
-            <h2>Select Game Variation</h2>
-            <p class="config-subtitle">Choose your preferred game mode</p>
-            <div class="variation-options">
-                <button class="variation-option-btn" data-variation="normal">
-                    <div class="variation-title">Normal</div>
-                    <div class="variation-description">Classic tic-tac-toe with marking only</div>
-                </button>
-                <button class="variation-option-btn" data-variation="with-remove">
-                    <div class="variation-title">With Remove</div>
-                    <div class="variation-description">Mark and remove opponent's cells</div>
-                </button>
-                <button class="variation-option-btn" data-variation="with-remove-move">
-                    <div class="variation-title">With Remove & Move</div>
-                    <div class="variation-description">Mark, remove, and move your cells</div>
-                </button>
+    <div
+      class="modal-overlay"
+      id="variation-selection-modal"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="back-btn" id="variation-back-btn">← Back</button>
+        <h2>Select Game Variation</h2>
+        <p class="config-subtitle">Choose your preferred game mode</p>
+        <div class="variation-options">
+          <button class="variation-option-btn" data-variation="normal">
+            <div class="variation-title">Normal</div>
+            <div class="variation-description">
+              Classic tic-tac-toe with marking only
             </div>
+          </button>
+          <button class="variation-option-btn" data-variation="with-remove">
+            <div class="variation-title">With Remove</div>
+            <div class="variation-description">
+              Mark and remove opponent's cells
+            </div>
+          </button>
+          <button
+            class="variation-option-btn"
+            data-variation="with-remove-move"
+          >
+            <div class="variation-title">With Remove & Move</div>
+            <div class="variation-description">
+              Mark, remove, and move your cells
+            </div>
+          </button>
         </div>
+      </div>
     </div>
 
     <!-- Online Lobby Modal -->
-    <div class="modal-overlay" id="online-lobby-modal" style="display: none;">
-        <div class="modal-content lobby-content">
-            <button class="back-btn" id="lobby-back-btn">← Back</button>
-            <h2>Online Multiplayer</h2>
-            
-            <div class="name-input-section">
-                <label for="player-name">Your Name</label>
-                <input type="text" id="player-name" placeholder="Enter your name" maxlength="15">
-            </div>
-            
-            <div class="lobby-options">
-                <div class="lobby-section">
-                    <h3>Create New Game</h3>
-                    <div class="variation-display" id="selected-variation-display" style="margin-bottom: 15px; padding: 10px; background: #f0f0f0; border-radius: 8px;">
-                        <strong>Game Mode:</strong> <span id="variation-name">Normal</span>
-                    </div>
-                    <div class="player-count-selector">
-                        <label>Number of Players:</label>
-                        <div class="player-count-btns">
-                            <button class="count-btn active" data-count="2">2</button>
-                            <button class="count-btn" data-count="3">3</button>
-                            <button class="count-btn" data-count="4">4</button>
-                            <button class="count-btn" data-count="5">5</button>
-                        </div>
-                    </div>
-                    <button class="menu-btn primary" id="btn-create-room">Create Room</button>
-                </div>
-                
-                <div class="lobby-divider">
-                    <span>OR</span>
-                </div>
-                
-                <div class="lobby-section">
-                    <h3>Join Existing Game</h3>
-                    <input type="text" id="room-code-input" placeholder="Enter Room Code" maxlength="6" style="text-transform: uppercase;">
-                    <button class="menu-btn secondary" id="btn-join-room">Join Room</button>
-                </div>
-            </div>
-            
-            <div id="lobby-error" class="error-message"></div>
+    <div class="modal-overlay" id="online-lobby-modal" style="display: none">
+      <div class="modal-content lobby-content">
+        <button class="back-btn" id="lobby-back-btn">← Back</button>
+        <h2>Online Multiplayer</h2>
+
+        <div class="name-input-section">
+          <label for="player-name">Your Name</label>
+          <input
+            type="text"
+            id="player-name"
+            placeholder="Enter your name"
+            maxlength="15"
+          />
         </div>
+
+        <div class="lobby-options">
+          <div class="lobby-section">
+            <h3>Create New Game</h3>
+            <div
+              class="variation-display"
+              id="selected-variation-display"
+              style="
+                margin-bottom: 15px;
+                padding: 10px;
+                background: #f0f0f0;
+                border-radius: 8px;
+              "
+            >
+              <strong>Game Mode:</strong>
+              <span id="variation-name">Normal</span>
+            </div>
+            <div class="player-count-selector">
+              <label>Number of Players:</label>
+              <div class="player-count-btns">
+                <button class="count-btn active" data-count="2">2</button>
+                <button class="count-btn" data-count="3">3</button>
+                <button class="count-btn" data-count="4">4</button>
+                <button class="count-btn" data-count="5">5</button>
+              </div>
+            </div>
+            <button class="menu-btn primary" id="btn-create-room">
+              Create Room
+            </button>
+          </div>
+
+          <div class="lobby-divider">
+            <span>OR</span>
+          </div>
+
+          <div class="lobby-section">
+            <h3>Join Existing Game</h3>
+            <input
+              type="text"
+              id="room-code-input"
+              placeholder="Enter Room Code"
+              maxlength="6"
+              style="text-transform: uppercase"
+            />
+            <button class="menu-btn secondary" id="btn-join-room">
+              Join Room
+            </button>
+          </div>
+        </div>
+
+        <div id="lobby-error" class="error-message"></div>
+      </div>
     </div>
 
     <!-- Waiting Room Modal -->
-    <div class="modal-overlay" id="waiting-room-modal" style="display: none;">
-        <div class="modal-content waiting-content">
-            <h2>Game Lobby</h2>
-            <div class="room-code-display">
-                <span class="room-label">Room Code:</span>
-                <span class="room-code" id="display-room-code">XXXXXX</span>
-                <button class="copy-btn" id="copy-code-btn" title="Copy to clipboard">📋</button>
-            </div>
-            
-            <div class="players-list" id="players-list">
-                <!-- Players will be added here dynamically -->
-            </div>
-            
-            <div class="waiting-info">
-                <span id="players-waiting-text">Waiting for players...</span>
-            </div>
-            
-            <div class="waiting-actions">
-                <button class="menu-btn primary" id="btn-start-game" style="display: none;">Start Game</button>
-                <button class="menu-btn danger" id="btn-leave-room">Leave Room</button>
-            </div>
+    <div class="modal-overlay" id="waiting-room-modal" style="display: none">
+      <div class="modal-content waiting-content">
+        <h2>Game Lobby</h2>
+        <div class="room-code-display">
+          <span class="room-label">Room Code:</span>
+          <span class="room-code" id="display-room-code">XXXXXX</span>
+          <button class="copy-btn" id="copy-code-btn" title="Copy to clipboard">
+            📋
+          </button>
         </div>
+
+        <div class="players-list" id="players-list">
+          <!-- Players will be added here dynamically -->
+        </div>
+
+        <div class="waiting-info">
+          <span id="players-waiting-text">Waiting for players...</span>
+        </div>
+
+        <div class="waiting-actions">
+          <button
+            class="menu-btn primary"
+            id="btn-start-game"
+            style="display: none"
+          >
+            Start Game
+          </button>
+          <button class="menu-btn danger" id="btn-leave-room">
+            Leave Room
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Game Mode Selection Modal (for local play) -->
-    <div class="modal-overlay" id="game-mode-modal" style="display: none;">
-        <div class="modal-content">
-            <button class="back-btn" id="mode-back-btn">← Back</button>
-            <h2>Select Game Mode</h2>
-            <div class="variation-display" id="local-variation-display" style="margin-bottom: 20px; padding: 10px; background: #f0f0f0; border-radius: 8px;">
-                <strong>Game Mode:</strong> <span id="local-variation-name">Normal</span>
-                <button class="change-variation-btn" id="change-local-variation-btn" style="margin-left: 10px; padding: 5px 10px; font-size: 0.9em;">Change</button>
-            </div>
-            <div class="mode-options">
-                <button class="mode-option-btn" data-mode="multi">Multi-Player (Local)</button>
-                <button class="mode-option-btn" data-mode="computer">Vs Computer</button>
-            </div>
-            <div class="computer-difficulty-section" id="computer-difficulty-section" style="display: none; margin-top: 25px;">
-                <label for="vs-computer-difficulty" style="display: block; margin-bottom: 10px; font-weight: 600; color: #1a1a2e;">Computer Difficulty:</label>
-                <select id="vs-computer-difficulty" class="difficulty-select" style="width: 100%; max-width: 300px; margin: 0 auto;">
-                    <option value="easy">Easy - Quick moves, basic strategy</option>
-                    <option value="medium" selected>Medium - Balanced play</option>
-                    <option value="hard">Hard - Strong strategy</option>
-                    <option value="expert">Expert - Very challenging</option>
-                </select>
-            </div>
+    <div class="modal-overlay" id="game-mode-modal" style="display: none">
+      <div class="modal-content">
+        <button class="back-btn" id="mode-back-btn">← Back</button>
+        <h2>Select Game Mode</h2>
+        <div
+          class="variation-display"
+          id="local-variation-display"
+          style="
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 8px;
+          "
+        >
+          <strong>Game Mode:</strong>
+          <span id="local-variation-name">Normal</span>
+          <button
+            class="change-variation-btn"
+            id="change-local-variation-btn"
+            style="margin-left: 10px; padding: 5px 10px; font-size: 0.9em"
+          >
+            Change
+          </button>
         </div>
+        <div class="mode-options">
+          <button class="mode-option-btn" data-mode="multi">
+            Multi-Player (Local)
+          </button>
+          <button class="mode-option-btn" data-mode="computer">
+            Vs Computer
+          </button>
+        </div>
+        <div
+          class="computer-difficulty-section"
+          id="computer-difficulty-section"
+          style="display: none; margin-top: 25px"
+        >
+          <label
+            for="vs-computer-difficulty"
+            style="
+              display: block;
+              margin-bottom: 10px;
+              font-weight: 600;
+              color: #1a1a2e;
+            "
+            >Computer Difficulty:</label
+          >
+          <select
+            id="vs-computer-difficulty"
+            class="difficulty-select"
+            style="width: 100%; max-width: 300px; margin: 0 auto"
+          >
+            <option value="easy">Easy - Quick moves, basic strategy</option>
+            <option value="medium" selected>Medium - Balanced play</option>
+            <option value="hard">Hard - Strong strategy</option>
+            <option value="expert">Expert - Very challenging</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <!-- Player Selection Modal (for multi-player) -->
-    <div class="modal-overlay" id="player-selection-modal" style="display: none;">
-        <div class="modal-content">
-            <button class="back-btn" id="players-back-btn">← Back</button>
-            <h2>Select Number of Players</h2>
-            <div class="player-options">
-                <button class="player-option-btn" data-players="2">2 Players</button>
-                <button class="player-option-btn" data-players="3">3 Players</button>
-                <button class="player-option-btn" data-players="4">4 Players</button>
-                <button class="player-option-btn" data-players="5">5 Players</button>
-            </div>
+    <div
+      class="modal-overlay"
+      id="player-selection-modal"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="back-btn" id="players-back-btn">← Back</button>
+        <h2>Select Number of Players</h2>
+        <div class="player-options">
+          <button class="player-option-btn" data-players="2">2 Players</button>
+          <button class="player-option-btn" data-players="3">3 Players</button>
+          <button class="player-option-btn" data-players="4">4 Players</button>
+          <button class="player-option-btn" data-players="5">5 Players</button>
         </div>
+      </div>
     </div>
 
     <!-- Player Configuration Modal (for mixed human/computer) -->
-    <div class="modal-overlay" id="player-config-modal" style="display: none;">
-        <div class="modal-content">
-            <button class="back-btn" id="config-back-btn">← Back</button>
-            <h2>Configure Players</h2>
-            <p class="config-subtitle">Choose which players are Human or Computer</p>
-            <div class="player-config-list" id="player-config-list">
-                <!-- Player config items will be added here dynamically -->
-            </div>
-            <button class="menu-btn primary" id="btn-start-config-game" style="margin-top: 20px;">Start Game</button>
+    <div class="modal-overlay" id="player-config-modal" style="display: none">
+      <div class="modal-content">
+        <button class="back-btn" id="config-back-btn">← Back</button>
+        <h2>Configure Players</h2>
+        <p class="config-subtitle">
+          Choose which players are Human or Computer
+        </p>
+        <div class="player-config-list" id="player-config-list">
+          <!-- Player config items will be added here dynamically -->
         </div>
+        <button
+          class="menu-btn primary"
+          id="btn-start-config-game"
+          style="margin-top: 20px"
+        >
+          Start Game
+        </button>
+      </div>
     </div>
 
-    <div class="container" id="game-container" style="display: none;">
-        <div class="game-header">
-            <h1>Tic Tac Toe</h1>
-            <div class="online-indicator" id="online-indicator" style="display: none;">
-                <span class="online-dot"></span>
-                <span id="room-info">Room: XXXXXX</span>
-            </div>
+    <div class="container" id="game-container" style="display: none">
+      <div class="game-header">
+        <h1>Tic Tac Toe</h1>
+        <div
+          class="online-indicator"
+          id="online-indicator"
+          style="display: none"
+        >
+          <span class="online-dot"></span>
+          <span id="room-info">Room: XXXXXX</span>
         </div>
-        <div class="game-info">
-            <div class="score-board" id="score-board">
-                <!-- Dynamic score items will be added here -->
-            </div>
-            <div class="current-player">
-                <span class="turn-label">Current Turn:</span>
-                <span id="current-player">X</span>
-                <span id="your-turn-indicator" class="your-turn" style="display: none;">← Your Turn!</span>
-                <span id="computer-thinking" style="display: none; margin-left: 10px; color: #764ba2;">🤖 Thinking...</span>
-                <div id="computer-progress-container" style="display: none; margin-left: 10px; margin-top: 8px; width: 200px;">
-                    <div class="progress-bar-wrapper">
-                        <div class="progress-bar" id="computer-progress-bar"></div>
-                    </div>
-                    <div class="progress-text" id="computer-progress-text">Evaluating moves...</div>
-                </div>
-            </div>
-            <div class="action-selector" id="action-selector">
-                <div class="action-label">Choose Action:</div>
-                <div class="action-buttons">
-                    <button class="action-btn active" data-action="mark" id="action-mark">
-                        <span class="action-text">Mark</span>
-                    </button>
-                    <button class="action-btn" data-action="delete" id="action-delete">
-                        <span class="action-text">Delete</span>
-                        <span class="cooldown-indicator" id="cooldown-delete"></span>
-                    </button>
-                    <button class="action-btn" data-action="move" id="action-move">
-                        <span class="action-text">Move</span>
-                        <span class="cooldown-indicator" id="cooldown-move"></span>
-                    </button>
-                </div>
-            </div>
-            <div class="status" id="status"></div>
+      </div>
+      <div class="game-info">
+        <div class="score-board" id="score-board">
+          <!-- Dynamic score items will be added here -->
         </div>
-        <div class="board" id="board">
-            <!-- Dynamic cells will be added here -->
-        </div>
-        <div class="game-controls">
-            <button class="reset-btn" id="reset-btn">Reset Game</button>
-            <button class="reset-btn secondary-btn" id="new-game-btn">New Game</button>
-        </div>
-        
-        <!-- Chat for online games -->
-        <div class="chat-container" id="chat-container" style="display: none;">
-            <div class="chat-header">
-                <span>💬 Chat</span>
-                <button class="chat-toggle" id="chat-toggle">▼</button>
+        <div class="current-player">
+          <span class="turn-label">Current Turn:</span>
+          <span id="current-player">X</span>
+          <span id="your-turn-indicator" class="your-turn" style="display: none"
+            >← Your Turn!</span
+          >
+          <span
+            id="computer-thinking"
+            style="display: none; margin-left: 10px; color: #764ba2"
+            >🤖 Thinking...</span
+          >
+          <div
+            id="computer-progress-container"
+            style="
+              display: none;
+              margin-left: 10px;
+              margin-top: 8px;
+              width: 200px;
+            "
+          >
+            <div class="progress-bar-wrapper">
+              <div class="progress-bar" id="computer-progress-bar"></div>
             </div>
-            <div class="chat-messages" id="chat-messages"></div>
-            <div class="chat-input-area">
-                <input type="text" id="chat-input" placeholder="Type a message..." maxlength="100">
-                <button id="chat-send-btn">Send</button>
+            <div class="progress-text" id="computer-progress-text">
+              Evaluating moves...
             </div>
+          </div>
         </div>
+        <div class="action-selector" id="action-selector">
+          <div class="action-label">Choose Action:</div>
+          <div class="action-buttons">
+            <button
+              class="action-btn active"
+              data-action="mark"
+              id="action-mark"
+            >
+              <span class="action-text">Mark</span>
+            </button>
+            <button class="action-btn" data-action="delete" id="action-delete">
+              <span class="action-text">Delete</span>
+              <span class="cooldown-indicator" id="cooldown-delete"></span>
+            </button>
+            <button class="action-btn" data-action="move" id="action-move">
+              <span class="action-text">Move</span>
+              <span class="cooldown-indicator" id="cooldown-move"></span>
+            </button>
+          </div>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+      <div class="board" id="board">
+        <!-- Dynamic cells will be added here -->
+      </div>
+      <div class="game-controls">
+        <button class="reset-btn" id="reset-btn">Reset Game</button>
+        <button class="reset-btn secondary-btn" id="new-game-btn">
+          New Game
+        </button>
+      </div>
+
+      <!-- Chat for online games -->
+      <div class="chat-container" id="chat-container" style="display: none">
+        <div class="chat-header">
+          <span>💬 Chat</span>
+          <button class="chat-toggle" id="chat-toggle">▼</button>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-area">
+          <input
+            type="text"
+            id="chat-input"
+            placeholder="Type a message..."
+            maxlength="100"
+          />
+          <button id="chat-send-btn">Send</button>
+        </div>
+      </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
-</body>
+  </body>
 </html>
