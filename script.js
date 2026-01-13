@@ -35,6 +35,9 @@ class OnlineTicTacToe {
         this.moveCounters = state.moveCounters;
         this.deleteCooldown = state.deleteCooldown;
         this.moveCooldown = state.moveCooldown;
+        this.gameVariation = state.gameVariation || 'normal';
+        this.allowDelete = state.allowDelete !== undefined ? state.allowDelete : (this.gameVariation === 'with-remove' || this.gameVariation === 'with-remove-move');
+        this.allowMove = state.allowMove !== undefined ? state.allowMove : (this.gameVariation === 'with-remove-move');
         this.scores = {};
         this.currentAction = 'mark';
         this.winningCells = [];
@@ -298,8 +301,12 @@ class OnlineTicTacToe {
 
         switch (action) {
             case 'mark': return true;
-            case 'delete': return counters.movesSinceDelete >= this.deleteCooldown;
-            case 'move': return counters.movesSinceMove >= this.moveCooldown;
+            case 'delete': 
+                if (!this.allowDelete) return false;
+                return counters.movesSinceDelete >= this.deleteCooldown;
+            case 'move': 
+                if (!this.allowMove) return false;
+                return counters.movesSinceMove >= this.moveCooldown;
             default: return false;
         }
     }
@@ -319,6 +326,19 @@ class OnlineTicTacToe {
         actions.forEach(action => {
             const btn = document.getElementById(`action-${action}`);
             if (btn) {
+                // Hide buttons for actions not allowed in this variation
+                if (action === 'delete' && !this.allowDelete) {
+                    btn.style.display = 'none';
+                    return;
+                }
+                if (action === 'move' && !this.allowMove) {
+                    btn.style.display = 'none';
+                    return;
+                }
+                
+                // Show allowed actions
+                btn.style.display = 'inline-flex';
+                
                 const isAvailable = this.isActionAvailable(action);
                 if (isAvailable) {
                     btn.classList.remove('disabled');
@@ -452,12 +472,15 @@ class OnlineTicTacToe {
 
 // ==================== LOCAL GAME CLASS ====================
 class TicTacToe {
-    constructor(numPlayers, vsComputer = false, playerConfig = null, difficultyLevels = null) {
+    constructor(numPlayers, vsComputer = false, playerConfig = null, difficultyLevels = null, gameVariation = 'normal') {
         this.numPlayers = numPlayers;
         this.vsComputer = vsComputer;
         this.boardSize = 4 + numPlayers;
         this.winLength = 4;
         this.board = Array(this.boardSize * this.boardSize).fill('');
+        this.gameVariation = gameVariation;
+        this.allowDelete = gameVariation === 'with-remove' || gameVariation === 'with-remove-move';
+        this.allowMove = gameVariation === 'with-remove-move';
 
         this.players = PLAYER_SYMBOLS.slice(0, numPlayers);
         this.currentPlayerIndex = 0;
@@ -727,8 +750,12 @@ class TicTacToe {
 
         switch (action) {
             case 'mark': return true;
-            case 'delete': return counters.movesSinceDelete >= this.deleteCooldown;
-            case 'move': return counters.movesSinceMove >= this.moveCooldown;
+            case 'delete': 
+                if (!this.allowDelete) return false;
+                return counters.movesSinceDelete >= this.deleteCooldown;
+            case 'move': 
+                if (!this.allowMove) return false;
+                return counters.movesSinceMove >= this.moveCooldown;
             default: return false;
         }
     }
@@ -767,6 +794,19 @@ class TicTacToe {
         actions.forEach(action => {
             const btn = document.getElementById(`action-${action}`);
             if (btn) {
+                // Hide buttons for actions not allowed in this variation
+                if (action === 'delete' && !this.allowDelete) {
+                    btn.style.display = 'none';
+                    return;
+                }
+                if (action === 'move' && !this.allowMove) {
+                    btn.style.display = 'none';
+                    return;
+                }
+                
+                // Show allowed actions
+                btn.style.display = 'inline-flex';
+                
                 const isAvailable = this.isActionAvailable(action);
                 if (isAvailable) {
                     btn.classList.remove('disabled');
@@ -1681,6 +1721,14 @@ class TicTacToe {
 let game = null;
 let socket = null;
 let selectedPlayerCount = 2;
+let selectedGameVariation = 'normal';
+
+// Variation names mapping
+const VARIATION_NAMES = {
+    'normal': 'Normal',
+    'with-remove': 'With Remove',
+    'with-remove-move': 'With Remove & Move'
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     // Get DOM elements
@@ -1689,6 +1737,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const waitingRoomModal = document.getElementById('waiting-room-modal');
     const gameModeModal = document.getElementById('game-mode-modal');
     const playerSelectionModal = document.getElementById('player-selection-modal');
+    const variationSelectionModal = document.getElementById('variation-selection-modal');
     const gameContainer = document.getElementById('game-container');
 
     // Main menu buttons
@@ -1722,6 +1771,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerConfigList = document.getElementById('player-config-list');
     const btnStartConfigGame = document.getElementById('btn-start-config-game');
 
+    // Variation selection elements
+    const variationBackBtn = document.getElementById('variation-back-btn');
+    const variationOptionButtons = document.querySelectorAll('.variation-option-btn');
+    const selectedVariationDisplay = document.getElementById('selected-variation-display');
+    const variationNameSpan = document.getElementById('variation-name');
+    const localVariationDisplay = document.getElementById('local-variation-display');
+    const localVariationNameSpan = document.getElementById('local-variation-name');
+    const changeLocalVariationBtn = document.getElementById('change-local-variation-btn');
+
     // Helper functions
     function hideAllModals() {
         mainMenuModal.style.display = 'none';
@@ -1730,6 +1788,16 @@ document.addEventListener('DOMContentLoaded', () => {
         gameModeModal.style.display = 'none';
         playerSelectionModal.style.display = 'none';
         playerConfigModal.style.display = 'none';
+        variationSelectionModal.style.display = 'none';
+    }
+
+    function updateVariationDisplay() {
+        if (variationNameSpan) {
+            variationNameSpan.textContent = VARIATION_NAMES[selectedGameVariation] || 'Normal';
+        }
+        if (localVariationNameSpan) {
+            localVariationNameSpan.textContent = VARIATION_NAMES[selectedGameVariation] || 'Normal';
+        }
     }
 
     function showError(message) {
@@ -1739,21 +1807,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     }
 
-    // Main menu handlers
-    btnOnline.addEventListener('click', () => {
+    // Variation selection handlers
+    variationBackBtn.addEventListener('click', () => {
         hideAllModals();
-        onlineLobbyModal.style.display = 'flex';
-
-        // Initialize socket connection
-        if (!socket) {
-            socket = io();
-            setupSocketListeners();
-        }
+        mainMenuModal.style.display = 'flex';
     });
 
-    btnLocal.addEventListener('click', () => {
+    variationOptionButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const variation = e.target.closest('.variation-option-btn').getAttribute('data-variation');
+            selectedGameVariation = variation;
+            updateVariationDisplay();
+            hideAllModals();
+            
+            // Determine where to go based on which button was clicked
+            const wasOnline = document.getElementById('btn-online').dataset.clicked === 'true';
+            if (wasOnline) {
+                onlineLobbyModal.style.display = 'flex';
+                // Initialize socket connection
+                if (!socket) {
+                    socket = io();
+                    setupSocketListeners();
+                }
+            } else {
+                gameModeModal.style.display = 'flex';
+            }
+        });
+    });
+
+    changeLocalVariationBtn.addEventListener('click', () => {
         hideAllModals();
-        gameModeModal.style.display = 'flex';
+        variationSelectionModal.style.display = 'flex';
+    });
+
+    // Main menu handlers
+    btnOnline.addEventListener('click', () => {
+        document.getElementById('btn-online').dataset.clicked = 'true';
+        document.getElementById('btn-local').dataset.clicked = 'false';
+        hideAllModals();
+        variationSelectionModal.style.display = 'flex';
     });
 
     // Lobby handlers
@@ -1777,9 +1869,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Initialize socket connection if not already done
+        if (!socket) {
+            socket = io();
+            setupSocketListeners();
+        }
+
         socket.emit('createRoom', {
             playerName,
-            numPlayers: selectedPlayerCount
+            numPlayers: selectedPlayerCount,
+            gameVariation: selectedGameVariation
         });
     });
 
@@ -1829,6 +1928,15 @@ document.addEventListener('DOMContentLoaded', () => {
         mainMenuModal.style.display = 'flex';
     });
 
+    // When opening local game, show variation selection first
+    btnLocal.addEventListener('click', () => {
+        document.getElementById('btn-online').dataset.clicked = 'false';
+        document.getElementById('btn-local').dataset.clicked = 'true';
+        hideAllModals();
+        variationSelectionModal.style.display = 'flex';
+    });
+
+
     playersBackBtn.addEventListener('click', () => {
         hideAllModals();
         gameModeModal.style.display = 'flex';
@@ -1847,7 +1955,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const difficulty = vsComputerDifficultySelect.value;
         hideAllModals();
         gameContainer.style.display = 'block';
-        game = new TicTacToe(2, true, null, [null, difficulty]);
+        game = new TicTacToe(2, true, null, [null, difficulty], selectedGameVariation);
     });
 
     // Add start button to modal
@@ -1902,7 +2010,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const numPlayers = playerConfig.length;
         hideAllModals();
         gameContainer.style.display = 'block';
-        game = new TicTacToe(numPlayers, false, playerConfig, difficultyLevels);
+        game = new TicTacToe(numPlayers, false, playerConfig, difficultyLevels, selectedGameVariation);
     });
 
     function showPlayerConfigModal(numPlayers) {
@@ -2060,4 +2168,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnStartGame.style.display = 'block';
         }
     }
+
+    // Initialize variation display
+    updateVariationDisplay();
 });

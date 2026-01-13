@@ -1,0 +1,6 @@
+version: 3
+agent:
+  # Note: This file is optional since ngrok is configured programmatically in server.js
+  # The authtoken is read from the NGROK_AUTHTOKEN environment variable in .env
+  # If you want to use ngrok CLI separately, uncomment and add your token below:
+  # authtoken: your_ngrok_authtoken_here

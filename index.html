@@ -30,6 +30,29 @@
         </div>
     </div>
 
+    <!-- Game Variation Selection Modal -->
+    <div class="modal-overlay" id="variation-selection-modal" style="display: none;">
+        <div class="modal-content">
+            <button class="back-btn" id="variation-back-btn">← Back</button>
+            <h2>Select Game Variation</h2>
+            <p class="config-subtitle">Choose your preferred game mode</p>
+            <div class="variation-options">
+                <button class="variation-option-btn" data-variation="normal">
+                    <div class="variation-title">Normal</div>
+                    <div class="variation-description">Classic tic-tac-toe with marking only</div>
+                </button>
+                <button class="variation-option-btn" data-variation="with-remove">
+                    <div class="variation-title">With Remove</div>
+                    <div class="variation-description">Mark and remove opponent's cells</div>
+                </button>
+                <button class="variation-option-btn" data-variation="with-remove-move">
+                    <div class="variation-title">With Remove & Move</div>
+                    <div class="variation-description">Mark, remove, and move your cells</div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Online Lobby Modal -->
     <div class="modal-overlay" id="online-lobby-modal" style="display: none;">
         <div class="modal-content lobby-content">
@@ -44,6 +67,9 @@
             <div class="lobby-options">
                 <div class="lobby-section">
                     <h3>Create New Game</h3>
+                    <div class="variation-display" id="selected-variation-display" style="margin-bottom: 15px; padding: 10px; background: #f0f0f0; border-radius: 8px;">
+                        <strong>Game Mode:</strong> <span id="variation-name">Normal</span>
+                    </div>
                     <div class="player-count-selector">
                         <label>Number of Players:</label>
                         <div class="player-count-btns">
@@ -101,6 +127,10 @@
         <div class="modal-content">
             <button class="back-btn" id="mode-back-btn">← Back</button>
             <h2>Select Game Mode</h2>
+            <div class="variation-display" id="local-variation-display" style="margin-bottom: 20px; padding: 10px; background: #f0f0f0; border-radius: 8px;">
+                <strong>Game Mode:</strong> <span id="local-variation-name">Normal</span>
+                <button class="change-variation-btn" id="change-local-variation-btn" style="margin-left: 10px; padding: 5px 10px; font-size: 0.9em;">Change</button>
+            </div>
             <div class="mode-options">
                 <button class="mode-option-btn" data-mode="multi">Multi-Player (Local)</button>
                 <button class="mode-option-btn" data-mode="computer">Vs Computer</button>

@@ -27,9 +27,18 @@ An advanced multiplayer Tic Tac Toe game with support for 2-5 players, computer 
 
 3. Open your browser to `http://localhost:3000`
 
-### Deployment
+### Deployment with Ngrok
 
-See [RAILWAY_DEPLOY.md](./RAILWAY_DEPLOY.md) for Railway deployment instructions.
+1. Get your ngrok authtoken from https://dashboard.ngrok.com/get-started/your-authtoken
+2. Create a `.env` file with:
+   ```
+   NGROK_AUTHTOKEN=your_ngrok_authtoken_here
+   ```
+3. Start the server:
+   ```bash
+   npm start
+   ```
+4. The ngrok public URL will be displayed in the console. Share this URL to access your game from anywhere.
 
 ## Game Modes
 
@@ -42,7 +51,7 @@ See [RAILWAY_DEPLOY.md](./RAILWAY_DEPLOY.md) for Railway deployment instructions
 
 - **Backend**: Node.js, Express, Socket.io
 - **Frontend**: Vanilla JavaScript, HTML5, CSS3
-- **Deployment**: Railway-ready configuration
+- **Deployment**: Ngrok integration for public access
 
 ## License
 

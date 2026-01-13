@@ -14,7 +14,7 @@ echo "🚀 Tic Tac Toe - Deploy Script"
 echo "==============================="
 
 # Configuration (customize these)
-DEPLOY_METHOD="${DEPLOY_METHOD:-local}"  # local, ssh, heroku, railway
+DEPLOY_METHOD="${DEPLOY_METHOD:-local}"  # local, ssh, heroku
 REMOTE_HOST="${REMOTE_HOST:-}"
 REMOTE_USER="${REMOTE_USER:-}"
 REMOTE_PATH="${REMOTE_PATH:-/var/www/tic-tac-toe}"
@@ -82,19 +82,6 @@ case "$DEPLOY_METHOD" in
         heroku open
         ;;
         
-    "railway")
-        echo "🚂 Deploying to Railway..."
-        
-        if ! command -v railway &> /dev/null; then
-            echo "❌ Railway CLI not found. Install it with: npm install -g @railway/cli"
-            exit 1
-        fi
-        
-        railway up
-        
-        echo "✅ Deployed to Railway!"
-        ;;
-        
     *)
         echo "❌ Unknown deploy method: $DEPLOY_METHOD"
         echo ""
@@ -102,7 +89,6 @@ case "$DEPLOY_METHOD" in
         echo "  local   - Run production build locally (default)"
         echo "  ssh     - Deploy via SSH/rsync"
         echo "  heroku  - Deploy to Heroku"
-        echo "  railway - Deploy to Railway"
         echo ""
         echo "Usage:"
         echo "  DEPLOY_METHOD=heroku ./scripts/deploy.sh"

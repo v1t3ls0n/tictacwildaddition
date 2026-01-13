@@ -585,6 +585,78 @@ h1 {
     transform: translateY(0);
 }
 
+/* Variation Options */
+.variation-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.variation-option-btn {
+    padding: 20px 30px;
+    font-size: 1.1em;
+    font-weight: 600;
+    background: white;
+    color: #333;
+    border: 2px solid #e0e0e0;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    font-family: 'Outfit', sans-serif;
+}
+
+.variation-option-btn:hover {
+    border-color: #4ecdc4;
+    background: #f8f9fc;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(78, 205, 196, 0.2);
+}
+
+.variation-option-btn:active {
+    transform: translateY(0);
+}
+
+.variation-title {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 5px;
+}
+
+.variation-description {
+    font-size: 0.9em;
+    color: #666;
+    font-weight: 400;
+}
+
+.variation-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: #f8f9fc;
+    border-radius: 12px;
+    font-size: 0.95em;
+    color: #333;
+}
+
+.change-variation-btn {
+    background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.change-variation-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(78, 205, 196, 0.3);
+}
+
 .action-label {
     font-size: 0.95em;
     color: #666;

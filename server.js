@@ -1,8 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const ngrok = require('ngrok');
 
 const app = express();
 const httpServer = createServer(app);
@@ -23,7 +25,7 @@ const rooms = new Map();
 const PLAYER_SYMBOLS = ['X', 'O', 'D', 'T', 'S'];
 
 class GameRoom {
-    constructor(roomCode, hostId, numPlayers, hostName) {
+    constructor(roomCode, hostId, numPlayers, hostName, gameVariation = 'normal') {
         this.roomCode = roomCode;
         this.hostId = hostId;
         this.numPlayers = numPlayers;
@@ -36,65 +38,70 @@ class GameRoom {
         this.gameActive = false;
         this.gameStarted = false;
         this.winningCells = [];
-        
+        this.gameVariation = gameVariation; // 'normal', 'with-remove', 'with-remove-move'
+
+        // Variation-specific settings
+        this.allowDelete = gameVariation === 'with-remove' || gameVariation === 'with-remove-move';
+        this.allowMove = gameVariation === 'with-remove-move';
+
         this.deleteCooldown = 5;
         this.moveCooldown = 3;
         this.moveCounters = {};
-        
+
         // Add host as first player
         this.addPlayer(hostId, hostName);
     }
-    
+
     addPlayer(socketId, playerName) {
         if (this.players.size >= this.numPlayers) {
             return { success: false, error: 'Room is full' };
         }
-        
+
         const playerIndex = this.players.size;
         const symbol = PLAYER_SYMBOLS[playerIndex];
-        
+
         this.players.set(socketId, {
             name: playerName,
             symbol: symbol,
             index: playerIndex
         });
         this.playerOrder.push(socketId);
-        
+
         // Initialize move counters for this player
         this.moveCounters[symbol] = {
             movesSinceDelete: this.deleteCooldown,
             movesSinceMove: this.moveCooldown
         };
-        
+
         return { success: true, symbol, playerIndex };
     }
-    
+
     removePlayer(socketId) {
         const player = this.players.get(socketId);
         if (!player) return null;
-        
+
         this.players.delete(socketId);
         this.playerOrder = this.playerOrder.filter(id => id !== socketId);
-        
+
         // If game was started and player left, end the game
         if (this.gameStarted) {
             this.gameActive = false;
         }
-        
+
         return player;
     }
-    
+
     startGame() {
         if (this.players.size < 2) {
             return { success: false, error: 'Need at least 2 players' };
         }
-        
+
         this.gameStarted = true;
         this.gameActive = true;
         this.currentPlayerIndex = 0;
         this.board = Array(this.boardSize * this.boardSize).fill('');
         this.winningCells = [];
-        
+
         // Reset move counters
         this.playerOrder.forEach(socketId => {
             const player = this.players.get(socketId);
@@ -105,41 +112,41 @@ class GameRoom {
                 };
             }
         });
-        
+
         return { success: true };
     }
-    
+
     getCurrentPlayer() {
         const socketId = this.playerOrder[this.currentPlayerIndex];
         return this.players.get(socketId);
     }
-    
+
     getCurrentPlayerId() {
         return this.playerOrder[this.currentPlayerIndex];
     }
-    
+
     isPlayerTurn(socketId) {
         return this.playerOrder[this.currentPlayerIndex] === socketId;
     }
-    
+
     makeMove(socketId, action, index) {
         if (!this.gameActive) {
             return { success: false, error: 'Game is not active' };
         }
-        
+
         if (!this.isPlayerTurn(socketId)) {
             return { success: false, error: 'Not your turn' };
         }
-        
+
         const player = this.players.get(socketId);
         if (!player) {
             return { success: false, error: 'Player not found' };
         }
-        
+
         const currentSymbol = player.symbol;
         let actionPerformed = false;
         let moveData = { action, index };
-        
+
         switch (action) {
             case 'mark':
                 if (this.board[index] !== '') {
@@ -148,8 +155,11 @@ class GameRoom {
                 this.board[index] = currentSymbol;
                 actionPerformed = true;
                 break;
-                
+
             case 'delete':
+                if (!this.allowDelete) {
+                    return { success: false, error: 'Delete action not allowed in this game variation' };
+                }
                 const counters = this.moveCounters[currentSymbol];
                 if (counters.movesSinceDelete < this.deleteCooldown) {
                     return { success: false, error: 'Delete on cooldown' };
@@ -160,8 +170,11 @@ class GameRoom {
                 this.board[index] = '';
                 actionPerformed = true;
                 break;
-                
+
             case 'move':
+                if (!this.allowMove) {
+                    return { success: false, error: 'Move action not allowed in this game variation' };
+                }
                 const moveCounters = this.moveCounters[currentSymbol];
                 if (moveCounters.movesSinceMove < this.moveCooldown) {
                     return { success: false, error: 'Move on cooldown' };
@@ -179,13 +192,13 @@ class GameRoom {
                 actionPerformed = true;
                 break;
         }
-        
+
         if (actionPerformed) {
             this.updateMoveCounters(currentSymbol, action);
-            
+
             const winner = this.checkWin(currentSymbol);
             const draw = this.checkDraw();
-            
+
             if (winner) {
                 this.gameActive = false;
                 return {
@@ -217,25 +230,25 @@ class GameRoom {
                 };
             }
         }
-        
+
         return { success: false, error: 'Move failed' };
     }
-    
+
     findAdjacentOwnCell(index, symbol) {
         const size = this.boardSize;
         const row = Math.floor(index / size);
         const col = index % size;
-        
+
         const directions = [
             [-1, -1], [-1, 0], [-1, 1],
-            [0, -1],           [0, 1],
-            [1, -1],  [1, 0],  [1, 1]
+            [0, -1], [0, 1],
+            [1, -1], [1, 0], [1, 1]
         ];
-        
+
         for (const [dr, dc] of directions) {
             const newRow = row + dr;
             const newCol = col + dc;
-            
+
             if (newRow >= 0 && newRow < size && newCol >= 0 && newCol < size) {
                 const adjacentIndex = newRow * size + newCol;
                 if (this.board[adjacentIndex] === symbol) {
@@ -243,13 +256,13 @@ class GameRoom {
                 }
             }
         }
-        
+
         return -1;
     }
-    
+
     updateMoveCounters(symbol, action) {
         const counters = this.moveCounters[symbol];
-        
+
         if (action === 'delete') {
             counters.movesSinceDelete = 0;
             counters.movesSinceMove++;
@@ -261,15 +274,15 @@ class GameRoom {
             counters.movesSinceMove++;
         }
     }
-    
+
     nextPlayer() {
         this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.playerOrder.length;
     }
-    
+
     checkWin(symbol) {
         const size = this.boardSize;
         const winLength = this.winLength;
-        
+
         // Check rows
         for (let row = 0; row < size; row++) {
             for (let col = 0; col <= size - winLength; col++) {
@@ -286,7 +299,7 @@ class GameRoom {
                 }
             }
         }
-        
+
         // Check columns
         for (let col = 0; col < size; col++) {
             for (let row = 0; row <= size - winLength; row++) {
@@ -303,7 +316,7 @@ class GameRoom {
                 }
             }
         }
-        
+
         // Check diagonal (top-left to bottom-right)
         for (let row = 0; row <= size - winLength; row++) {
             for (let col = 0; col <= size - winLength; col++) {
@@ -320,7 +333,7 @@ class GameRoom {
                 }
             }
         }
-        
+
         // Check diagonal (top-right to bottom-left)
         for (let row = 0; row <= size - winLength; row++) {
             for (let col = winLength - 1; col < size; col++) {
@@ -337,20 +350,20 @@ class GameRoom {
                 }
             }
         }
-        
+
         return false;
     }
-    
+
     checkDraw() {
         return this.board.every(cell => cell !== '');
     }
-    
+
     resetGame() {
         this.board = Array(this.boardSize * this.boardSize).fill('');
         this.currentPlayerIndex = 0;
         this.gameActive = true;
         this.winningCells = [];
-        
+
         // Reset move counters
         this.playerOrder.forEach(socketId => {
             const player = this.players.get(socketId);
@@ -361,10 +374,10 @@ class GameRoom {
                 };
             }
         });
-        
+
         return { success: true };
     }
-    
+
     getState() {
         const playersList = [];
         this.playerOrder.forEach(socketId => {
@@ -378,7 +391,7 @@ class GameRoom {
                 });
             }
         });
-        
+
         return {
             roomCode: this.roomCode,
             hostId: this.hostId,
@@ -392,7 +405,10 @@ class GameRoom {
             gameStarted: this.gameStarted,
             moveCounters: this.moveCounters,
             deleteCooldown: this.deleteCooldown,
-            moveCooldown: this.moveCooldown
+            moveCooldown: this.moveCooldown,
+            gameVariation: this.gameVariation,
+            allowDelete: this.allowDelete,
+            allowMove: this.allowMove
         };
     }
 }
@@ -409,21 +425,21 @@ function generateRoomCode() {
 
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
-    
+
     // Create a new room
-    socket.on('createRoom', ({ playerName, numPlayers }) => {
+    socket.on('createRoom', ({ playerName, numPlayers, gameVariation = 'normal' }) => {
         let roomCode = generateRoomCode();
         // Ensure unique code
         while (rooms.has(roomCode)) {
             roomCode = generateRoomCode();
         }
-        
-        const room = new GameRoom(roomCode, socket.id, numPlayers, playerName);
+
+        const room = new GameRoom(roomCode, socket.id, numPlayers, playerName, gameVariation);
         rooms.set(roomCode, room);
         socket.join(roomCode);
-        
-        console.log(`Room ${roomCode} created by ${playerName}`);
-        
+
+        console.log(`Room ${roomCode} created by ${playerName} with variation: ${gameVariation}`);
+
         socket.emit('roomCreated', {
             roomCode,
             state: room.getState(),
@@ -431,32 +447,32 @@ io.on('connection', (socket) => {
             yourIndex: 0
         });
     });
-    
+
     // Join an existing room
     socket.on('joinRoom', ({ roomCode, playerName }) => {
         const room = rooms.get(roomCode.toUpperCase());
-        
+
         if (!room) {
             socket.emit('joinError', { error: 'Room not found' });
             return;
         }
-        
+
         if (room.gameStarted) {
             socket.emit('joinError', { error: 'Game already started' });
             return;
         }
-        
+
         const result = room.addPlayer(socket.id, playerName);
-        
+
         if (!result.success) {
             socket.emit('joinError', { error: result.error });
             return;
         }
-        
+
         socket.join(roomCode.toUpperCase());
-        
+
         console.log(`${playerName} joined room ${roomCode}`);
-        
+
         // Notify the joining player
         socket.emit('roomJoined', {
             roomCode: room.roomCode,
@@ -464,57 +480,57 @@ io.on('connection', (socket) => {
             yourSymbol: result.symbol,
             yourIndex: result.playerIndex
         });
-        
+
         // Notify all players in the room
         io.to(room.roomCode).emit('playerJoined', {
             state: room.getState()
         });
     });
-    
+
     // Start the game (host only)
     socket.on('startGame', ({ roomCode }) => {
         const room = rooms.get(roomCode);
-        
+
         if (!room) {
             socket.emit('gameError', { error: 'Room not found' });
             return;
         }
-        
+
         if (room.hostId !== socket.id) {
             socket.emit('gameError', { error: 'Only host can start the game' });
             return;
         }
-        
+
         const result = room.startGame();
-        
+
         if (!result.success) {
             socket.emit('gameError', { error: result.error });
             return;
         }
-        
+
         console.log(`Game started in room ${roomCode}`);
-        
+
         io.to(roomCode).emit('gameStarted', {
             state: room.getState()
         });
     });
-    
+
     // Handle player move
     socket.on('makeMove', ({ roomCode, action, index }) => {
         const room = rooms.get(roomCode);
-        
+
         if (!room) {
             socket.emit('moveError', { error: 'Room not found' });
             return;
         }
-        
+
         const result = room.makeMove(socket.id, action, index);
-        
+
         if (!result.success) {
             socket.emit('moveError', { error: result.error });
             return;
         }
-        
+
         // Broadcast the move to all players
         io.to(roomCode).emit('moveMade', {
             ...result,
@@ -522,37 +538,37 @@ io.on('connection', (socket) => {
             state: room.getState()
         });
     });
-    
+
     // Reset game
     socket.on('resetGame', ({ roomCode }) => {
         const room = rooms.get(roomCode);
-        
+
         if (!room) {
             socket.emit('gameError', { error: 'Room not found' });
             return;
         }
-        
+
         if (room.hostId !== socket.id) {
             socket.emit('gameError', { error: 'Only host can reset the game' });
             return;
         }
-        
+
         room.resetGame();
-        
+
         io.to(roomCode).emit('gameReset', {
             state: room.getState()
         });
     });
-    
+
     // Handle disconnection
     socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
-        
+
         // Find and clean up any rooms this player was in
         for (const [roomCode, room] of rooms.entries()) {
             if (room.players.has(socket.id)) {
                 const player = room.removePlayer(socket.id);
-                
+
                 if (room.players.size === 0) {
                     // Delete empty room
                     rooms.delete(roomCode);
@@ -562,7 +578,7 @@ io.on('connection', (socket) => {
                     if (room.hostId === socket.id) {
                         room.hostId = room.playerOrder[0];
                     }
-                    
+
                     // Notify remaining players
                     io.to(roomCode).emit('playerLeft', {
                         playerName: player.name,
@@ -573,15 +589,15 @@ io.on('connection', (socket) => {
             }
         }
     });
-    
+
     // Send chat message
     socket.on('chatMessage', ({ roomCode, message }) => {
         const room = rooms.get(roomCode);
         if (!room) return;
-        
+
         const player = room.players.get(socket.id);
         if (!player) return;
-        
+
         io.to(roomCode).emit('chatMessage', {
             playerName: player.name,
             symbol: player.symbol,
@@ -591,11 +607,25 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, '0.0.0.0', () => {
-    const url = process.env.RAILWAY_PUBLIC_DOMAIN 
-        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-        : `http://localhost:${PORT}`;
+httpServer.listen(PORT, '0.0.0.0', async () => {
+    let url = `http://localhost:${PORT}`;
     
+    // Setup ngrok if NGROK_AUTHTOKEN is provided
+    if (process.env.NGROK_AUTHTOKEN) {
+        try {
+            await ngrok.authtoken(process.env.NGROK_AUTHTOKEN);
+            const ngrokUrl = await ngrok.connect({
+                addr: PORT,
+                authtoken: process.env.NGROK_AUTHTOKEN
+            });
+            url = ngrokUrl;
+            console.log(`\n🌐 Ngrok tunnel established: ${ngrokUrl}\n`);
+        } catch (error) {
+            console.error('Failed to establish ngrok tunnel:', error.message);
+            console.log('Continuing without ngrok...\n');
+        }
+    }
+
     console.log(`
 ╔════════════════════════════════════════════╗
 ║   Tic Tac Toe Online Server Running!       ║

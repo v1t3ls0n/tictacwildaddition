@@ -4,8 +4,9 @@
   "description": "Online multiplayer Tic Tac Toe game",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node kill-server.js && node server.js",
+    "dev": "node kill-server.js && node server.js",
+    "build": "node shell_scripts/build.js"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -14,7 +15,9 @@
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "ngrok": "^5.0.0-beta.2",
+    "dotenv": "^16.3.1"
   }
 }
 
