@@ -18,14 +18,31 @@
             <h1 class="game-title">Tic Tac Toe</h1>
             <p class="game-subtitle">Ultimate Edition</p>
             <div class="menu-options">
-                <button class="menu-btn primary" id="btn-online">
-                    <span class="btn-icon">🌐</span>
-                    Play Online
-                </button>
-                <button class="menu-btn secondary" id="btn-local">
-                    <span class="btn-icon">🎮</span>
-                    Local Game
-                </button>
+                <div class="versus-section">
+                    <h3 class="versus-title">Choose Your Game Mode</h3>
+                    <div class="versus-grid">
+                        <button class="versus-btn" id="btn-pvp-local" data-mode="pvp-local">
+                            <span class="versus-icon">👥</span>
+                            <span class="versus-label">Player vs Player</span>
+                            <span class="versus-subtitle">Local 2 Players</span>
+                        </button>
+                        <button class="versus-btn" id="btn-pvc" data-mode="pvc">
+                            <span class="versus-icon">🤖</span>
+                            <span class="versus-label">Player vs Computer</span>
+                            <span class="versus-subtitle">Challenge AI</span>
+                        </button>
+                        <button class="versus-btn" id="btn-multiplayer" data-mode="multiplayer">
+                            <span class="versus-icon">🎯</span>
+                            <span class="versus-label">Multi-Player</span>
+                            <span class="versus-subtitle">2-5 Players Local</span>
+                        </button>
+                        <button class="versus-btn primary" id="btn-online" data-mode="online">
+                            <span class="versus-icon">🌐</span>
+                            <span class="versus-label">Play Online</span>
+                            <span class="versus-subtitle">Multiplayer Online</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

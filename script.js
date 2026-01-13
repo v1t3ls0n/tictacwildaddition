@@ -1742,7 +1742,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Main menu buttons
     const btnOnline = document.getElementById('btn-online');
-    const btnLocal = document.getElementById('btn-local');
+    const btnPvpLocal = document.getElementById('btn-pvp-local');
+    const btnPvc = document.getElementById('btn-pvc');
+    const btnMultiplayer = document.getElementById('btn-multiplayer');
 
     // Lobby elements
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
@@ -1820,17 +1822,38 @@ document.addEventListener('DOMContentLoaded', () => {
             updateVariationDisplay();
             hideAllModals();
             
-            // Determine where to go based on which button was clicked
-            const wasOnline = document.getElementById('btn-online').dataset.clicked === 'true';
-            if (wasOnline) {
+            // Determine where to go based on game mode
+            const gameMode = variationSelectionModal.dataset.gameMode;
+            
+            if (gameMode === 'online') {
                 onlineLobbyModal.style.display = 'flex';
                 // Initialize socket connection
                 if (!socket) {
                     socket = io();
                     setupSocketListeners();
                 }
-            } else {
+            } else if (gameMode === 'pvp-local') {
+                // Direct to 2-player local game
+                hideAllModals();
+                gameContainer.style.display = 'block';
+                game = new TicTacToe(2, false, [true, true], [null, null], selectedGameVariation);
+            } else if (gameMode === 'pvc') {
+                // Direct to vs computer game with difficulty selection
+                // Create a simplified modal for difficulty selection
+                hideAllModals();
                 gameModeModal.style.display = 'flex';
+                // Hide mode option buttons and show only difficulty selector
+                document.querySelectorAll('.mode-option-btn').forEach(btn => {
+                    btn.style.display = 'none';
+                });
+                computerDifficultySection.style.display = 'block';
+                vsComputerStartBtn.style.display = 'block';
+                // Update modal title
+                const modalTitle = gameModeModal.querySelector('h2');
+                if (modalTitle) modalTitle.textContent = 'Player vs Computer';
+            } else if (gameMode === 'multiplayer') {
+                // Show player selection modal
+                playerSelectionModal.style.display = 'flex';
             }
         });
     });
@@ -1841,11 +1864,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Main menu handlers
-    btnOnline.addEventListener('click', () => {
-        document.getElementById('btn-online').dataset.clicked = 'true';
-        document.getElementById('btn-local').dataset.clicked = 'false';
+    // Player vs Player (Local 2 Players)
+    btnPvpLocal.addEventListener('click', () => {
+        selectedPlayerCount = 2;
         hideAllModals();
         variationSelectionModal.style.display = 'flex';
+        // Store that this is for local 2-player
+        variationSelectionModal.dataset.gameMode = 'pvp-local';
+    });
+
+    // Player vs Computer
+    btnPvc.addEventListener('click', () => {
+        hideAllModals();
+        variationSelectionModal.style.display = 'flex';
+        variationSelectionModal.dataset.gameMode = 'pvc';
+    });
+
+    // Multi-Player (2-5 Players Local)
+    btnMultiplayer.addEventListener('click', () => {
+        hideAllModals();
+        variationSelectionModal.style.display = 'flex';
+        variationSelectionModal.dataset.gameMode = 'multiplayer';
+    });
+
+    // Play Online
+    btnOnline.addEventListener('click', () => {
+        hideAllModals();
+        variationSelectionModal.style.display = 'flex';
+        variationSelectionModal.dataset.gameMode = 'online';
     });
 
     // Lobby handlers
@@ -1924,17 +1970,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Local game handlers
     modeBackBtn.addEventListener('click', () => {
-        hideAllModals();
-        mainMenuModal.style.display = 'flex';
+        // If we came from a specific game mode, go back to variation selection
+        if (variationSelectionModal.dataset.gameMode) {
+            hideAllModals();
+            variationSelectionModal.style.display = 'flex';
+            // Reset mode option buttons visibility
+            document.querySelectorAll('.mode-option-btn').forEach(btn => {
+                btn.style.display = 'block';
+            });
+            computerDifficultySection.style.display = 'none';
+            vsComputerStartBtn.style.display = 'none';
+            // Reset modal title
+            const modalTitle = gameModeModal.querySelector('h2');
+            if (modalTitle) modalTitle.textContent = 'Select Game Mode';
+        } else {
+            hideAllModals();
+            mainMenuModal.style.display = 'flex';
+        }
     });
 
-    // When opening local game, show variation selection first
-    btnLocal.addEventListener('click', () => {
-        document.getElementById('btn-online').dataset.clicked = 'false';
-        document.getElementById('btn-local').dataset.clicked = 'true';
-        hideAllModals();
-        variationSelectionModal.style.display = 'flex';
-    });
 
 
     playersBackBtn.addEventListener('click', () => {
@@ -1970,6 +2024,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 computerDifficultySection.style.display = 'block';
                 vsComputerStartBtn.style.display = 'block';
             } else {
+                // This shouldn't be reached from the new home screen, but keep for compatibility
                 computerDifficultySection.style.display = 'none';
                 vsComputerStartBtn.style.display = 'none';
                 hideAllModals();
