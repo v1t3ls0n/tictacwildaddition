@@ -4,7 +4,96 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
-const ngrok = require('ngrok');
+const { spawn } = require('child_process');
+
+// ngrok binary path (from npm package)
+const NGROK_BIN = path.join(__dirname, 'node_modules', 'ngrok', 'bin', process.platform === 'win32' ? 'ngrok.exe' : 'ngrok');
+
+let ngrokProcess = null;
+
+// Start ngrok tunnel using the binary directly
+async function startNgrokTunnel(port, authtoken) {
+    return new Promise((resolve, reject) => {
+        console.log('🌐 Starting ngrok tunnel...');
+        
+        // Start ngrok with http tunnel
+        ngrokProcess = spawn(NGROK_BIN, ['http', port.toString(), '--log=stdout', '--log-format=json'], {
+            env: { ...process.env, NGROK_AUTHTOKEN: authtoken },
+            windowsHide: true
+        });
+        
+        let resolved = false;
+        
+        ngrokProcess.stdout.on('data', (data) => {
+            const lines = data.toString().trim().split('\n');
+            for (const line of lines) {
+                try {
+                    const log = JSON.parse(line);
+                    // Look for the URL in the log output
+                    if (log.url && log.url.startsWith('https://')) {
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(log.url);
+                        }
+                    }
+                    // Also check for addr field which contains the public URL
+                    if (log.addr && log.msg === 'started tunnel') {
+                        // The URL might be in a different field
+                    }
+                } catch (e) {
+                    // Not JSON, check for URL pattern
+                    const urlMatch = line.match(/url=(https:\/\/[^\s]+)/);
+                    if (urlMatch && !resolved) {
+                        resolved = true;
+                        resolve(urlMatch[1]);
+                    }
+                }
+            }
+        });
+        
+        ngrokProcess.stderr.on('data', (data) => {
+            const msg = data.toString();
+            if (!resolved && msg.includes('error')) {
+                resolved = true;
+                reject(new Error(msg));
+            }
+        });
+        
+        ngrokProcess.on('error', (err) => {
+            if (!resolved) {
+                resolved = true;
+                reject(err);
+            }
+        });
+        
+        ngrokProcess.on('exit', (code) => {
+            if (!resolved && code !== 0) {
+                resolved = true;
+                reject(new Error(`ngrok exited with code ${code}`));
+            }
+        });
+        
+        // Timeout after 30 seconds
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                reject(new Error('ngrok startup timed out'));
+            }
+        }, 30000);
+    });
+}
+
+// Cleanup ngrok on exit
+function cleanupNgrok() {
+    if (ngrokProcess) {
+        ngrokProcess.kill();
+        ngrokProcess = null;
+    }
+}
+
+process.on('exit', cleanupNgrok);
+process.on('SIGINT', () => { cleanupNgrok(); process.exit(); });
+process.on('SIGTERM', () => { cleanupNgrok(); process.exit(); });
 
 const app = express();
 const httpServer = createServer(app);
@@ -613,11 +702,7 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
     // Setup ngrok if NGROK_AUTHTOKEN is provided
     if (process.env.NGROK_AUTHTOKEN) {
         try {
-            await ngrok.authtoken(process.env.NGROK_AUTHTOKEN);
-            const ngrokUrl = await ngrok.connect({
-                addr: PORT,
-                authtoken: process.env.NGROK_AUTHTOKEN
-            });
+            const ngrokUrl = await startNgrokTunnel(PORT, process.env.NGROK_AUTHTOKEN);
             url = ngrokUrl;
             console.log(`\n🌐 Ngrok tunnel established: ${ngrokUrl}\n`);
         } catch (error) {
